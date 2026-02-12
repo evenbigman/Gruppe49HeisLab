@@ -1,3 +1,3 @@
-module example/main.go
+module sanntidslab
 
 go 1.25.5
