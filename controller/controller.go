@@ -8,6 +8,7 @@ import (
 
 const (
 	numFloors    = 4
+	maxFloor     = numFloors - 1
 	doorOpenTime = 3
 )
 
@@ -47,45 +48,38 @@ func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]boo
 		select {
 		case v := <-floor:
 			internalElevator.CurrentFloor = v
+			if internalElevator.CurrentFloor == maxFloor || internalElevator.CurrentFloor == 0 {
+				stopFlag = true
+			}
+			for i := 0; i <= maxFloor; i++ {
+				if !internalQue[i] {
+					continue
+				}
+				if i < internalElevator.CurrentFloor {
+					//set a flag for to make the elevator go down
+					downFlag = true
+				} else if i == internalElevator.CurrentFloor {
+					stopFlag = true
+				} else if i > internalElevator.CurrentFloor {
+					//sets a flag to mark the next direction as up, and clears the downflag
+					upFlag = true
+					break
+				}
+			}
+
+			if stopFlag {
+				//stops the elevator, anounces the direction of travel, and waits for the required amount of time
+				elevatorStop(&internalElevator, upFlag, downFlag)
+			}
+
 			switch internalElevator.Direction {
 			case MovingUp:
 				fmt.Println("Going up and is at floor", internalElevator.CurrentFloor)
 				//should check if the elevator should keep moving up, based on the elements in the que
-				for i := 0; i <= numFloors-1; i++ {
-					if !internalQue[i] {
-						continue
-					}
-					if i < internalElevator.CurrentFloor {
-						//set a flag for to make the elevator go down
-						downFlag = true
-
-					} else if i == internalElevator.CurrentFloor {
-						stopFlag = true
-					} else if i > internalElevator.CurrentFloor {
-						//sets a flag to mark the direction as up, and clears the downflag
-						upFlag = true
-						downFlag = false
-						break
-					}
-				}
-
-				if stopFlag {
-					//stops the elevator, anounces the direction of travel, and waits for the required amount of time
-					elevio.SetMotorDirection(elevio.MD_Stop)
-					internalElevator.Direction = Stopped
-					elevio.SetDoorOpenLamp(true)
-					if downFlag {
-						elevio.SetButtonLamp(elevio.BT_HallDown, internalElevator.CurrentFloor, false)
-					} else if upFlag {
-						elevio.SetButtonLamp(elevio.BT_HallUp, internalElevator.CurrentFloor, false)
-					}
-					time.Sleep(doorOpenTime * time.Second)
-				}
 				if upFlag {
 					elevio.SetMotorDirection(elevio.MD_Up)
 					internalElevator.Direction = MovingUp
-				}
-				if downFlag {
+				} else if downFlag {
 					elevio.SetMotorDirection(elevio.MD_Down)
 					internalElevator.Direction = MovingDown
 				}
@@ -93,43 +87,12 @@ func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]boo
 			case MovingDown:
 				fmt.Println("Going down and is at floor", internalElevator.CurrentFloor)
 				//should check if the elevator should keep moving down, based on the elements in the que
-				for i := 0; i <= numFloors; i++ {
-					if !internalQue[i] {
-						continue
-					}
-					if i > internalElevator.CurrentFloor {
-						//set a flag for to make the elevator go down
-						upFlag = true
-
-					} else if i == internalElevator.CurrentFloor {
-						stopFlag = true
-					} else if i < internalElevator.CurrentFloor {
-						//sets a flag to mark the direction as up, and clears the downflag
-						upFlag = false
-						downFlag = true
-						break
-					}
-				}
-
-				if stopFlag {
-					//stops the elevator, anounces the direction of travel, and waits for the required amount of time
-					elevio.SetMotorDirection(elevio.MD_Stop)
-					internalElevator.Direction = Stopped
-					elevio.SetDoorOpenLamp(true)
-					if downFlag {
-						elevio.SetButtonLamp(elevio.BT_HallDown, internalElevator.CurrentFloor, false)
-					} else if upFlag {
-						elevio.SetButtonLamp(elevio.BT_HallUp, internalElevator.CurrentFloor, false)
-					}
-					time.Sleep(doorOpenTime * time.Second)
-				}
-				if upFlag {
-					elevio.SetMotorDirection(elevio.MD_Up)
-					internalElevator.Direction = MovingUp
-				}
 				if downFlag {
 					elevio.SetMotorDirection(elevio.MD_Down)
 					internalElevator.Direction = MovingDown
+				} else if upFlag {
+					elevio.SetMotorDirection(elevio.MD_Up)
+					internalElevator.Direction = MovingUp
 				}
 			}
 
@@ -146,5 +109,18 @@ func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]boo
 		}
 
 	}
+
+}
+
+func elevatorStop(elevator *Elevator, upFlag bool, downFlag bool) {
+	elevio.SetMotorDirection(elevio.MD_Stop)
+	elevator.Direction = Stopped
+	elevio.SetDoorOpenLamp(true)
+	if downFlag {
+		elevio.SetButtonLamp(elevio.BT_HallDown, elevator.CurrentFloor, false)
+	} else if upFlag {
+		elevio.SetButtonLamp(elevio.BT_HallUp, elevator.CurrentFloor, false)
+	}
+	time.Sleep(doorOpenTime * time.Second)
 
 }
