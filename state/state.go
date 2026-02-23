@@ -9,6 +9,7 @@ Thoughts:
 import(
 	"sanntidslab/network/bcast"
 	//"sanntidslab/network/localip"
+	"encoding/json"
 	"math/rand/v2"
 	"sanntidslab/config"
 	"time"
@@ -39,7 +40,7 @@ type State struct{
 	CompletedOrders []Order
 }
 
-//var States map[int]State
+var States = make(map[string]State)
 
 var myId string
 
@@ -47,8 +48,6 @@ func Broadcaster(){
 // ------Testing------
 	myId = strconv.Itoa(rand.Int())
 	log.Printf("Started broadcaster with id: %s \r\n", myId)
-
-	States := make(map[string]State)
 	
 	myState := State{
 		Version: 1,
@@ -64,7 +63,8 @@ func Broadcaster(){
 	
 	States[myId] = myState
 
-	log.Printf("States: %s\r\n", States)
+	jsondata, _ := json.MarshalIndent(States, "", "  ")	
+	log.Println(string(jsondata))
 // -------------------
 
 	tx := make(chan Msg)
@@ -84,19 +84,27 @@ func Broadcaster(){
 				log.Printf("Received message\r\n")
 
 				for rcvdId, rcvdState := range msg.States{
-					if _, ok := States[rcvdId]; !ok{ //If state is not stored
-						States[rcvdId] = rcvdState
-					} else if rcvdState.Version > States[rcvdId].Version	{
-						States[rcvdId] = rcvdState
-					}
+					HandleReceivedState(rcvdId, rcvdState)
 				}
 
-				log.Printf("States: %s\r\n", States)
+				for id, _ := range States{ log.Printf("Saved id: %x \r\n", id) }
+				//jsondata, _ := json.MarshalIndent(States, "", "  ")	
+				//log.Println(string(jsondata))
 			}
 
 		case <-ticker.C:
 			tx <- Msg{Sender: myId, States: States}
 			log.Printf("Sent message\r\n")
 		}
+	}
+}
+
+func HandleReceivedState(id string, state State){
+	//Either store, update or ignore received state
+	if _, ok := States[id]; !ok{ //If state is not stored
+		States[id] = state
+	} else if state.Version > States[id].Version	{
+		//Check if order is to be handled
+		States[id] = state
 	}
 }
