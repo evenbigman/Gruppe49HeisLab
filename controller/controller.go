@@ -113,7 +113,7 @@ func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]boo
 
 		case v := <-que:
 			//Updates the que that is used by this function to run the elevator
-			// also make the elevator start moving if it is at rest
+			//Should also make the elevator start moving if it is at rest
 			internalQue = v
 			fmt.Println(internalQue)
 
