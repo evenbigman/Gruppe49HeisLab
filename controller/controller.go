@@ -37,13 +37,26 @@ type Elevator struct {
 	State        ElevatorStatus
 }
 
+func InitElevator(elevator *Elevator, floorCh chan int) {
+	fmt.Println("Initializing elevator")
+	if elevator.CurrentFloor < 0 || elevator.CurrentFloor > 4 {
+		elevio.SetMotorDirection(elevio.MD_Down)
+	}
+	for v := range floorCh {
+		elevio.SetMotorDirection(elevio.MD_Stop)
+		elevator.CurrentFloor = v
+		fmt.Println("Elevator Initialized")
+		break
+	}
+}
+
 func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]bool) {
 	//Runs the elevator, and continues in the direction of travle as long as there are more orders in the que
 	//Does not handle buttonpresses
 	var internalQue [numFloors]bool
 	var upFlag, downFlag, stopFlag bool
 	var internalElevator Elevator
-	fmt.Println("Eleveator Controller started")
+	fmt.Println("Elevator Controller started")
 	for {
 		select {
 		case v := <-floor:
