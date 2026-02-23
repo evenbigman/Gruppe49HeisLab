@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	//some constants used for the elevators to avoid magic numbers
 	numFloors    = 4
 	maxFloor     = numFloors - 1
 	doorOpenTime = 3
@@ -38,6 +39,7 @@ type Elevator struct {
 }
 
 func InitElevator(elevator *Elevator, floorCh chan int) {
+	//Drives the elevator to a known floor at the start of a program
 	fmt.Println("Initializing elevator")
 	if elevator.CurrentFloor < 0 || elevator.CurrentFloor > 4 {
 		elevio.SetMotorDirection(elevio.MD_Down)
@@ -51,7 +53,7 @@ func InitElevator(elevator *Elevator, floorCh chan int) {
 }
 
 func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]bool) {
-	//Runs the elevator, and continues in the direction of travle as long as there are more orders in the que
+	//Runs the elevator, and continues in the direction of travel as long as there are more orders in the que
 	//Does not handle buttonpresses
 	var internalQue [numFloors]bool
 	var upFlag, downFlag, stopFlag bool
@@ -88,7 +90,7 @@ func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]boo
 			switch internalElevator.Direction {
 			case MovingUp:
 				fmt.Println("Going up and is at floor", internalElevator.CurrentFloor)
-				//should check if the elevator should keep moving up, based on the elements in the que
+				//check if the elevator should keep moving up, based on the elements in the que
 				if upFlag {
 					elevio.SetMotorDirection(elevio.MD_Up)
 					internalElevator.Direction = MovingUp
@@ -99,7 +101,7 @@ func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]boo
 
 			case MovingDown:
 				fmt.Println("Going down and is at floor", internalElevator.CurrentFloor)
-				//should check if the elevator should keep moving down, based on the elements in the que
+				//check if the elevator should keep moving down, based on the elements in the que
 				if downFlag {
 					elevio.SetMotorDirection(elevio.MD_Down)
 					internalElevator.Direction = MovingDown
@@ -111,7 +113,7 @@ func RunElevator(elevator chan Elevator, floor chan int, que chan [numFloors]boo
 
 		case v := <-que:
 			//Updates the que that is used by this function to run the elevator
-			//Should also make the elevator start moving if it is at rest
+			// also make the elevator start moving if it is at rest
 			internalQue = v
 			fmt.Println(internalQue)
 
