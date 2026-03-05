@@ -11,7 +11,9 @@ const (
 	//TODO read from file
 	numFloors    = 4
 	maxFloor     = numFloors - 1
-	doorOpenTime = 3
+	doorOpenTime = 3 * time.Second
+	undefined    = -1
+	defaultPort  = "15657"
 )
 
 type ElevatorStatus int
@@ -32,96 +34,116 @@ const (
 )
 
 type Elevator struct {
-	CurrentFloor        int
-	NextFloor           int
-	HallOrders          [numFloors][2]bool
-	CabOrders           [numFloors]bool
-	Direction           Direction
-	State               ElevatorStatus
-	PressedHallButtons  [numFloors][2]bool
-	PressedCabButtons   [numFloors]bool
-	ObstructionPressent bool
+	CurrentFloor       int
+	NextFloor          int
+	HallOrders         [numFloors][2]bool
+	CabOrders          [numFloors]bool
+	Direction          Direction
+	State              ElevatorStatus
+	PressedHallButtons [numFloors][2]bool
+	PressedCabButtons  [numFloors]bool
+	ObstructionPresent bool
 }
 
-// Local elevator
-var elevator = Elevator{
-	CurrentFloor: -1, //start with undefined states, maybe convert to non-magic-numbers
-	NextFloor:    -1,
-	Direction:    Stopped,
-	State:        Idle,
+type ElevatorController struct {
+	elevator Elevator
+	lock     sync.Mutex
+	initOnce sync.Once
 }
-var elevatorLock sync.Mutex
-var _initialized bool = false
+
+var (
+	instance *ElevatorController
+	once     sync.Once
+)
 
 // Public funcitons
-func CompleteWaitingOrders() {
-	for moreOrders() {
-		switch elevator.Direction {
+func GetController() *ElevatorController {
+	once.Do(func() {
+		instance = &ElevatorController{}
+	})
+	return instance
+}
+
+func (ec *ElevatorController) CompleteWaitingOrders() {
+	for ec.moreOrders() {
+
+		ec.lock.Lock()
+		direction := ec.elevator.Direction
+		currentFloor := ec.elevator.CurrentFloor
+		cabOrders := ec.elevator.CabOrders
+		hallOrders := ec.elevator.HallOrders
+		ec.lock.Unlock()
+
+		switch direction {
 		case MovingUp:
-			for moreOrdersAbove() {
-				if elevator.CabOrders[elevator.CurrentFloor] || elevator.HallOrders[elevator.CurrentFloor][0] || elevator.HallOrders[elevator.CurrentFloor][1] {
-					stopElevatorAtCurrentFloor()
+			for ec.moreOrdersAbove() {
+				if cabOrders[currentFloor] || hallOrders[currentFloor][0] || hallOrders[currentFloor][1] {
+					ec.stopElevatorAtCurrentFloor()
 				}
-				elevatorDriveUp()
+				ec.elevatorDriveUp()
 			}
-			stopElevator()
+			ec.stopElevator()
 
 		case MovingDown:
-			for moreOrdersBelow() {
-				if elevator.CabOrders[elevator.CurrentFloor] || elevator.HallOrders[elevator.CurrentFloor][0] || elevator.HallOrders[elevator.CurrentFloor][1] {
-					stopElevatorAtCurrentFloor()
+			for ec.moreOrdersBelow() {
+				if cabOrders[currentFloor] || hallOrders[currentFloor][0] || hallOrders[currentFloor][1] {
+					ec.stopElevatorAtCurrentFloor()
 				}
-				elevatorDriveDown()
+				ec.elevatorDriveDown()
 			}
-			stopElevator()
+			ec.stopElevator()
 
 		case Stopped:
-			if moreOrdersAbove() {
-				elevatorDriveUp()
-			} else if moreOrdersBelow() {
-				elevatorDriveDown()
+			if ec.moreOrdersAbove() {
+				ec.elevatorDriveUp()
+			} else if ec.moreOrdersBelow() {
+				ec.elevatorDriveDown()
 			}
 		}
 	}
-	elevatorLock.Lock()
-	elevator.State = Idle
-	elevator.Direction = Stopped
-	elevatorLock.Unlock()
+	ec.lock.Lock()
+	ec.elevator.State = Idle
+	ec.elevator.Direction = Stopped
+	ec.lock.Unlock()
 }
 
-func InitElevator()
-	elevio.Init("localhost:15657", numFloors)
-	//could add functionality to ensure that the elevator knows its current floor if it is between floors when starting.
-	_initialized = true
+func (ec *ElevatorController) InitElevator(port ...string) {
+	ec.initOnce.Do(func() {
+		p := defaultPort
+		if len(port) > 0 {
+			p = port[0]
+		}
+		address := "localhost:" + p
+		elevio.Init(address, numFloors)
+		//could add functionality to ensure that the elevator knows its current floor if it is between floors when starting.
+	})
 }
 
-func SetHallOrders(confirmedHallOrders [numFloors][2]bool)
-	elevatorLock.Lock()
-	defer elevatorLock.Unlock()
+func (ec *ElevatorController) SetHallOrders(confirmedHallOrders [numFloors][2]bool) {
+	ec.lock.Lock()
+	defer ec.lock.Unlock()
 
-	elevator.HallOrders = confirmedHallOrders
+	ec.elevator.HallOrders = confirmedHallOrders
 }
 
-func SetCabOrders(confirmedCabOrders [numFloors]bool) {
-	elevatorLock.Lock()
-	defer elevatorLock.Unlock()
-	elevator.CabOrders = confirmedCabOrders
+func (ec *ElevatorController) SetCabOrders(confirmedCabOrders [numFloors]bool) {
+	ec.lock.Lock()
+	defer ec.lock.Unlock()
+	ec.elevator.CabOrders = confirmedCabOrders
 
 }
 
-func GetElevatorState() Elevator {
+func (ec *ElevatorController) GetElevatorState() Elevator {
 	//locking to ensure no updates happen while it reads the state of the elevator
-	elevatorLock.Lock()
-	defer elevatorLock.Unlock()
-	v := elevator
+	ec.lock.Lock()
+	defer ec.lock.Unlock()
+	v := ec.elevator
 	return v
 }
 
 // Private funcitons
-func updateElevatorState() {
-	if !_initialized {
-		InitElevator()
-	}
+func (ec *ElevatorController) updateElevatorState() {
+	ec.InitElevator()
 
 	floor := make(chan int)
 	buttons := make(chan elevio.ButtonEvent)
@@ -136,43 +158,43 @@ func updateElevatorState() {
 
 			switch v.Button {
 			case elevio.BT_HallDown:
-				elevatorLock.Lock()
-				elevator.PressedHallButtons[v.Floor][1] = true
-				elevatorLock.Unlock()
+				ec.lock.Lock()
+				ec.elevator.PressedHallButtons[v.Floor][1] = true
+				ec.lock.Unlock()
 
 			case elevio.BT_HallUp:
-				elevatorLock.Lock()
-				elevator.PressedHallButtons[v.Floor][0] = true
-				elevatorLock.Unlock()
+				ec.lock.Lock()
+				ec.elevator.PressedHallButtons[v.Floor][0] = true
+				ec.lock.Unlock()
 
 			case elevio.BT_Cab:
-				elevatorLock.Lock()
-				elevator.PressedCabButtons[v.Floor] = true
-				elevatorLock.Unlock()
+				ec.lock.Lock()
+				ec.elevator.PressedCabButtons[v.Floor] = true
+				ec.lock.Unlock()
 
 			}
 
 		case v := <-floor:
-			elevatorLock.Lock()
-			elevator.CurrentFloor = v
-			elevatorLock.Unlock()
+			ec.lock.Lock()
+			ec.elevator.CurrentFloor = v
+			ec.lock.Unlock()
 
 		case v := <-obstruction:
-			elevatorLock.Lock()
-			elevator.ObstructionPressent = v
-			elevatorLock.Unlock()
+			ec.lock.Lock()
+			ec.elevator.ObstructionPresent = v
+			ec.lock.Unlock()
 
 		}
 	}
 }
 
-func moreOrdersAbove() bool {
-	elevatorLock.Lock()
-	hallOrders := elevator.HallOrders
-	cabOrders := elevator.CabOrders
-	currentFloor := elevator.CurrentFloor
-	floorAbove := elevator.CurrentFloor + 1
-	elevatorLock.Unlock()
+func (ec *ElevatorController) moreOrdersAbove() bool {
+	ec.lock.Lock()
+	hallOrders := ec.elevator.HallOrders
+	cabOrders := ec.elevator.CabOrders
+	currentFloor := ec.elevator.CurrentFloor
+	floorAbove := ec.elevator.CurrentFloor + 1
+	ec.lock.Unlock()
 
 	if currentFloor == maxFloor {
 		return false
@@ -196,13 +218,13 @@ func moreOrdersAbove() bool {
 	return false
 }
 
-func moreOrdersBelow() bool {
-	elevatorLock.Lock()
-	hallOrders := elevator.HallOrders
-	cabOrders := elevator.CabOrders
-	currentFloor := elevator.CurrentFloor
-	floorBelow := elevator.CurrentFloor - 1
-	elevatorLock.Unlock()
+func (ec *ElevatorController) moreOrdersBelow() bool {
+	ec.lock.Lock()
+	hallOrders := ec.elevator.HallOrders
+	cabOrders := ec.elevator.CabOrders
+	currentFloor := ec.elevator.CurrentFloor
+	floorBelow := ec.elevator.CurrentFloor - 1
+	ec.lock.Unlock()
 
 	if currentFloor == 0 {
 		return false
@@ -215,7 +237,7 @@ func moreOrdersBelow() bool {
 			}
 		}
 	}
-	for _, orderBelow := range cabOrders {
+	for _, orderBelow := range cabOrders[:floorBelow] {
 		if orderBelow {
 			return true
 		}
@@ -223,16 +245,14 @@ func moreOrdersBelow() bool {
 	return false
 }
 
-func moreOrders() bool {
-	elevatorLock.Lock()
-	hallOrders := elevator.HallOrders
-	cabOrders := elevator.CabOrders
-	elevatorLock.Unlock()
-
-	orderActive := false
+func (ec *ElevatorController) moreOrders() bool {
+	ec.lock.Lock()
+	hallOrders := ec.elevator.HallOrders
+	cabOrders := ec.elevator.CabOrders
+	ec.lock.Unlock()
 
 	for _, orders := range hallOrders {
-		for _, orderActive = range orders {
+		for _, orderActive := range orders {
 			if orderActive {
 				return orderActive
 			}
@@ -248,55 +268,48 @@ func moreOrders() bool {
 	return false
 }
 
-func setLight(floor int, lightType elevio.ButtonType, lightState bool) {
+func (ec *ElevatorController) setLight(floor int, lightType elevio.ButtonType, lightState bool) {
 	//TODO change this functions in terms of this module, with new constants
 	elevio.SetButtonLamp(lightType, floor, lightState)
 }
 
-func openDoor() {
+func (ec *ElevatorController) openDoor() {
 	elevio.SetDoorOpenLamp(true)
 }
 
-func closeDoor() {
+func (ec *ElevatorController) closeDoor() {
 	elevio.SetDoorOpenLamp(false)
 }
 
-func goToFloor(orderedFloor int) {
-	for elevator.CurrentFloor != orderedFloor {
-		if elevator.CurrentFloor < orderedFloor {
-			elevio.SetMotorDirection(elevio.MD_Up)
-		} else if elevator.CurrentFloor > orderedFloor {
-			elevio.SetMotorDirection(elevio.MD_Down)
-		}
-	}
-	stopElevator()
+func (ec *ElevatorController) stopElevatorAtCurrentFloor() {
+	ec.stopElevator()
+	ec.openDoor()
+	time.Sleep(doorOpenTime)
+	ec.closeDoor()
 }
 
-func stopElevatorAtCurrentFloor() {
-	stopElevator()
-	openDoor()
-	elevator.State = DoorOpen
-	time.Sleep(doorOpenTime * time.Second)
-	closeDoor()
-}
-
-func stopElevator() {
+func (ec *ElevatorController) stopElevator() {
 	elevio.SetMotorDirection(elevio.MD_Stop)
-	elevatorLock.Lock()
-	elevator.Direction = Stopped
-	elevatorLock.Unlock()
+	ec.lock.Lock()
+	ec.elevator.Direction = Stopped
+	ec.lock.Unlock()
 }
 
-func elevatorDriveUp() {
+func (ec *ElevatorController) elevatorDriveUp() {
 	elevio.SetMotorDirection(elevio.MD_Up)
-	elevatorLock.Lock()
-	elevator.Direction = MovingUp
-	elevatorLock.Unlock()
+	ec.lock.Lock()
+	ec.elevator.Direction = MovingUp
+	ec.lock.Unlock()
 }
 
-func elevatorDriveDown() {
+func (ec *ElevatorController) elevatorDriveDown() {
 	elevio.SetMotorDirection(elevio.MD_Down)
-	elevatorLock.Lock()
-	elevator.Direction = MovingDown
-	elevatorLock.Unlock()
+	ec.lock.Lock()
+	ec.elevator.Direction = MovingDown
+	ec.lock.Unlock()
 }
+
+//TODO Add functionality to consider obstructions
+//TODO Add functionlity for anouncing direction upon getting to a floor
+//TODO Add functionality to consider latest cab button pressed when someone enters an elevator if it should change direction
+//TODO Add functionlity to clear orders once at a floor
