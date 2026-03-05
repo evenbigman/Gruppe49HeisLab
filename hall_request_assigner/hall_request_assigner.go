@@ -35,20 +35,22 @@ func elevatorDirectionToString(direction controller.Direction) string {
 	case controller.MovingDown:
 		return "down"
 	default:
+		// TODO: throw error?
 		return "stop"
 	}
 }
 
-func elevatorStateToJSON(s State) ([]byte, error) {
-	states := make(map[string]any, len(s.Elevators))
+func elevatorStateToJSON(cabCallsAndElevatorStates State) ([]byte, error) {
+	elevatorStates := make(map[string]any, len(cabCallsAndElevatorStates.Elevators))
 
-	for i, e := range s.Elevators {
+	for i, e := range cabCallsAndElevatorStates.Elevators {
+		// TODO: need to make the dimensions allign
 		cabRequests := make([][2]bool, len(e.Orders))
 		for floor, hasCabOrder := range e.Orders {
 			cabRequests[floor] = [2]bool{hasCabOrder, false}
 		}
 
-		states[fmt.Sprintf("id_%d", i+1)] = map[string]any{
+		elevatorStates[fmt.Sprintf("id_%d", i+1)] = map[string]any{
 			"behaviour":   elevatorStatusToString(e.State),
 			"floor":       e.CurrentFloor,
 			"direction":   elevatorDirectionToString(e.Direction),
@@ -56,12 +58,12 @@ func elevatorStateToJSON(s State) ([]byte, error) {
 		}
 	}
 
-	payload := map[string]any{
-		"hallRequests": s.HallCalls,
-		"states":       states,
+	elevatorAssignmentPayload := map[string]any{
+		"hallRequests": cabCallsAndElevatorStates.HallCalls,
+		"states":       elevatorStates,
 	}
 
-	return json.MarshalIndent(payload, "", "  ")
+	return json.MarshalIndent(elevatorAssignmentPayload, "", "  ")
 }
 
 func GetElevatorAssignmentFromHallRequest(cabCallsAndElevatorStates State) ([]byte, error) {
@@ -78,7 +80,6 @@ func GetElevatorAssignmentFromHallRequest(cabCallsAndElevatorStates State) ([]by
 		return nil, fmt.Errorf("hall_request_assigner failed: %w (stderr: %s)", err, stderr.String())
 	}
 
-	// Trim trailing
 	out := bytes.TrimSpace(stdout.Bytes())
 	return out, nil
 }
