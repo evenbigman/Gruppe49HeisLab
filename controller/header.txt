@@ -1,3 +1,28 @@
+type Elevator struct {
+	CurrentFloor int
+	NextFloor    int
+	Orders       [numFloors]bool
+	Direction    Direction
+	State        ElevatorStatus
+}
+
+type ElevatorStatus int
+
+const (
+	Idle ElevatorStatus = iota
+	Driving
+	DoorOpen
+	Obstruction
+)
+
+type Direction int
+
+const (
+	Stopped Direction = iota
+	MovingUp
+	MovingDown
+)
+
 
 func CompleteWaitingOrders() 
 func InitElevator()          
