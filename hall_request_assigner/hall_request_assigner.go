@@ -14,6 +14,8 @@ type State struct {
 	Elevators []controller.Elevator
 }
 
+type ElevatorAssignments map[string][][2]bool
+
 func elevatorStatusToString(elevatorStatus controller.ElevatorStatus) string {
 	switch elevatorStatus {
 	case controller.Idle:
@@ -66,9 +68,22 @@ func elevatorStateToJSON(cabCallsAndElevatorStates State) ([]byte, error) {
 	return json.MarshalIndent(elevatorAssignmentPayload, "", "  ")
 }
 
-func GetElevatorAssignmentFromHallRequest(cabCallsAndElevatorStates State) ([]byte, error) {
+// TODO: better function name
+func elevatorAssignmentJSONToMap(jsonData []byte) (ElevatorAssignments, error) {
+	var assignments ElevatorAssignments
+
+	err := json.Unmarshal(jsonData, &assignments)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse hall assignments: %w", err)
+	}
+
+	return assignments, nil
+}
+
+func GetElevatorAssignmentFromHallRequest(cabCallsAndElevatorStates State) (ElevatorAssignments, error) {
 	// TODO: catch error
 	cabCallsAndElevatorStates_JSON, _ := elevatorStateToJSON(cabCallsAndElevatorStates)
+
 	cmd := exec.Command("./hall_request_assigner", "--input", string(cabCallsAndElevatorStates_JSON))
 
 	var stdout bytes.Buffer
@@ -81,5 +96,9 @@ func GetElevatorAssignmentFromHallRequest(cabCallsAndElevatorStates State) ([]by
 	}
 
 	out := bytes.TrimSpace(stdout.Bytes())
-	return out, nil
+
+	// TODO: catch error
+	ElevatorAssignment, _ := elevatorAssignmentJSONToMap(out)
+
+	return ElevatorAssignment, nil
 }
