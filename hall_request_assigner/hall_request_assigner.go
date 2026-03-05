@@ -45,18 +45,12 @@ func elevatorDirectionToString(direction controller.Direction) string {
 func elevatorStateToJSON(cabCallsAndElevatorStates State) ([]byte, error) {
 	elevatorStates := make(map[string]any, len(cabCallsAndElevatorStates.Elevators))
 
-	for i, e := range cabCallsAndElevatorStates.Elevators {
-		// TODO: need to make the dimensions allign
-		cabRequests := make([][2]bool, len(e.Orders))
-		for floor, hasCabOrder := range e.Orders {
-			cabRequests[floor] = [2]bool{hasCabOrder, false}
-		}
-
+	for i, elevator := range cabCallsAndElevatorStates.Elevators {
 		elevatorStates[fmt.Sprintf("id_%d", i+1)] = map[string]any{
-			"behaviour":   elevatorStatusToString(e.State),
-			"floor":       e.CurrentFloor,
-			"direction":   elevatorDirectionToString(e.Direction),
-			"cabRequests": cabRequests,
+			"behaviour":   elevatorStatusToString(elevator.State),
+			"floor":       elevator.CurrentFloor,
+			"direction":   elevatorDirectionToString(elevator.Direction),
+			"cabRequests": elevator.CabOrders,
 		}
 	}
 
