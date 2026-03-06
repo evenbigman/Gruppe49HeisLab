@@ -46,9 +46,13 @@ type Elevator struct {
 }
 
 type ElevatorController struct {
-	elevator Elevator
-	lock     sync.Mutex
-	initOnce sync.Once
+	elevator               Elevator
+	lock                   sync.Mutex
+	initOnce               sync.Once
+	stateChangeSubscribers []chan struct{}
+	floorSubscribers       []chan struct{}
+	buttonSubscribers      []chan struct{}
+	subsLock               sync.Mutex
 }
 
 var (
@@ -141,7 +145,38 @@ func (ec *ElevatorController) GetElevatorState() Elevator {
 	return v
 }
 
+func (ec *ElevatorController) SubscribeState() <-chan struct{} {
+	return ec.addSubscriber(&ec.stateChangeSubscribers)
+}
+
+func (ec *ElevatorController) SubscribeFloor() <-chan struct{} {
+	return ec.addSubscriber(&ec.floorSubscribers)
+}
+
+func (ec *ElevatorController) SubscribeButtons() <-chan struct{} {
+	return ec.addSubscriber(&ec.buttonSubscribers)
+}
+
 // Private funcitons
+func (ec *ElevatorController) addSubscriber(subs *[]chan struct{}) <-chan struct{} {
+	ch := make(chan struct{}, 1)
+	ec.subsLock.Lock()
+	*subs = append(*subs, ch)
+	ec.subsLock.Unlock()
+	return ch
+}
+
+func (ec *ElevatorController) notify(subscribers *[]chan struct{}) {
+	ec.subsLock.Lock()
+	defer ec.subsLock.Unlock()
+	for _, ch := range *subscribers {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
 func (ec *ElevatorController) updateElevatorState() {
 	ec.InitElevator()
 
@@ -254,14 +289,14 @@ func (ec *ElevatorController) moreOrders() bool {
 	for _, orders := range hallOrders {
 		for _, orderActive := range orders {
 			if orderActive {
-				return orderActive
+				return true
 			}
 		}
 	}
 
 	for _, orderActive := range cabOrders {
 		if orderActive {
-			return orderActive
+			return true
 		}
 	}
 
@@ -313,3 +348,4 @@ func (ec *ElevatorController) elevatorDriveDown() {
 //TODO Add functionlity for anouncing direction upon getting to a floor
 //TODO Add functionality to consider latest cab button pressed when someone enters an elevator if it should change direction
 //TODO Add functionlity to clear orders once at a floor
+//TODO Add funcitonality to get configs from a file
