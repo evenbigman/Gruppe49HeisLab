@@ -177,6 +177,18 @@ func (ec *ElevatorController) notify(subscribers *[]chan struct{}) {
 	}
 }
 
+func (ec *ElevatorController) notifyFloor() {
+	ec.notify(&ec.floorSubscribers)
+}
+
+func (ec *ElevatorController) notifyState() {
+	ec.notify(&ec.stateChangeSubscribers)
+}
+
+func (ec *ElevatorController) notfiyButton() {
+	ec.notify(&ec.buttonSubscribers)
+}
+
 func (ec *ElevatorController) updateElevatorState() {
 	ec.InitElevator()
 
