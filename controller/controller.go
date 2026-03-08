@@ -16,14 +16,21 @@ const (
 	defaultPort  = "15657"
 )
 
+type directions int
+
+const (
+	up directions = iota
+	down
+)
+
 type ElevatorState int
 
 const (
 	Idle ElevatorState = iota
 	MovingUp
 	MovingDown
-	DoorOpenMovingUp
-	DoorOpenMovingDown
+	DoorOpenHeadingUp
+	DoorOpenHeadingDown
 	Obstructed
 )
 
@@ -34,7 +41,6 @@ type Elevator struct {
 	State              ElevatorState
 	PressedHallButtons [numFloors][2]bool
 	PressedCabButtons  [numFloors]bool
-	ObstructionPresent bool
 }
 
 type ElevatorController struct {
@@ -51,7 +57,6 @@ type ElevatorController struct {
 }
 
 var (
-	// TODO: create better names for these variables
 	instance     *ElevatorController
 	instanceOnce sync.Once
 )
@@ -208,10 +213,8 @@ func (ec *ElevatorController) pollElevatorState() {
 			ec.notifyFloor()
 			ec.notifyState()
 
-		case v := <-obstruction:
-			ec.stateLock.Lock()
-			ec.elevator.ObstructionPresent = v
-			ec.stateLock.Unlock()
+		case <-obstruction:
+			ec.setState(Obstructed)
 			ec.notifyObstruciton()
 			ec.notifyState()
 
@@ -323,8 +326,11 @@ func (ec *ElevatorController) moreOrders() bool {
 func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	state := ec.GetElevatorState()
 
+	ec.clearCabOrder(state.CurrentFloor)
+
 	if state.CurrentFloor == maxFloor || !ec.moreOrdersAbove() {
 		if ec.moreOrdersBelow() {
+			ec.clearHallorder(state.CurrentFloor, down)
 			ec.setState(MovingDown)
 			ec.stopElevatorAtCurrentFloor()
 			ec.elevatorDriveDown()
@@ -336,6 +342,7 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	}
 
 	if ec.moreOrdersAbove() {
+		ec.clearHallorder(state.CurrentFloor, up)
 		ec.stopElevatorAtCurrentFloor()
 	}
 
@@ -343,9 +350,11 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 
 func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	state := ec.GetElevatorState()
+	ec.clearCabOrder(state.CurrentFloor)
 
 	if state.CurrentFloor == 0 || !ec.moreOrdersBelow() {
 		if ec.moreOrdersAbove() {
+			ec.clearHallorder(state.CurrentFloor, up)
 			ec.setState(MovingUp)
 			ec.stopElevatorAtCurrentFloor()
 			ec.elevatorDriveUp()
@@ -357,6 +366,7 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	}
 
 	if ec.moreOrdersBelow() {
+		ec.clearHallorder(state.CurrentFloor, down)
 		ec.stopElevatorAtCurrentFloor()
 	}
 
@@ -392,27 +402,27 @@ func (ec *ElevatorController) closeDoor() {
 		}
 	}
 	elevio.SetDoorOpenLamp(false)
-}
+} // FIX: Cant handle repeated obstruction
 
 func (ec *ElevatorController) stopElevatorAtCurrentFloor() {
 	ec.stopElevator()
 	ec.openDoor()
-	time.Sleep(doorOpenTime)
 	state := ec.GetElevatorState()
 
 	switch state.State {
 	case MovingUp:
-		ec.setState(DoorOpenMovingUp)
+		ec.setState(DoorOpenHeadingUp)
 	case MovingDown:
-		ec.setState(DoorOpenMovingDown)
+		ec.setState(DoorOpenHeadingDown)
 	}
 
+	time.Sleep(doorOpenTime)
 	ec.closeDoor()
 
 	switch state.State {
-	case DoorOpenMovingUp:
+	case DoorOpenHeadingUp:
 		ec.setState(MovingUp)
-	case DoorOpenMovingDown:
+	case DoorOpenHeadingDown:
 		ec.setState(MovingDown)
 	}
 
@@ -447,15 +457,29 @@ func (ec *ElevatorController) handleLights() {
 			for floor, orders := range state.HallOrders {
 				// WARNING: might not be according to implementation of other parts of the system
 				// as in it can turn on light for going down when it is actually supposed to go up
-				elevio.SetButtonLamp(elevio.BT_HallUp, floor, orders[elevio.BT_HallUp])
-				elevio.SetButtonLamp(elevio.BT_HallDown, floor, orders[elevio.BT_HallDown])
+				elevio.SetButtonLamp(elevio.BT_HallUp, floor, orders[up])
+				elevio.SetButtonLamp(elevio.BT_HallDown, floor, orders[down])
 			}
 		}
 	}
 
 }
 
-// TODO: Add functionlity for anouncing direction with lights upon getting to a floor
+func (ec *ElevatorController) clearCabOrder(floor int) {
+	ec.stateLock.Lock()
+	defer ec.stateLock.Unlock()
+	ec.elevator.CabOrders[floor] = false
+	ec.notfiyCabOrders()
+	ec.notifyState()
+}
+
+func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
+	ec.stateLock.Lock()
+	defer ec.stateLock.Unlock()
+	ec.elevator.HallOrders[floor][direction] = false
+	ec.notfiyHallOrders()
+	ec.notifyState()
+}
+
 // TODO: Add functionality to consider latest cab button pressed when someone enters an elevator if it should change direction
-// TODO: Add functionlity to clear orders once at a floor
 // TODO: Add functionality to get configs from a file
