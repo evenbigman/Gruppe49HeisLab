@@ -8,40 +8,40 @@ import (
 	"sanntidslab/controller"
 )
 
-type ElevatorStates struct {
+type HallCallsAndElevatorStates struct {
 	HallCalls [][2]bool
 	Elevators []controller.Elevator
 }
 
 type ElevatorHallAssignments map[string][][2]bool
 
-func elevatorStatusToString(elevatorStatus controller.ElevatorStatus) (string, error) {
+func elevatorStatusToString(elevatorStatus controller.ElevatorState) (string, error) {
 	switch elevatorStatus {
 	case controller.Idle:
 		return "idle", nil
-	case controller.Driving:
+	case controller.MovingUp, controller.MovingDown:
 		return "moving", nil
-	case controller.DoorOpen:
+	case controller.DoorOpenHeadingUp, controller.DoorOpenHeadingDown, controller.DoorOpenIdle:
 		return "doorOpen", nil
 	default:
 		return "", fmt.Errorf("unknown elevator status: %d", elevatorStatus)
 	}
 }
 
-func elevatorDirectionToString(direction controller.Direction) (string, error) {
-	switch direction {
+func elevatorMovingStateToString(movingState controller.ElevatorState) (string, error) {
+	switch movingState {
 	case controller.MovingUp:
 		return "up", nil
 	case controller.MovingDown:
 		return "down", nil
-	case controller.Stopped:
+	case controller.Idle, controller.DoorOpenIdle:
 		return "stop", nil
 	default:
-		return "", fmt.Errorf("unknown direction: %d", direction)
+		return "", fmt.Errorf("unknown elevator moving state: %d", movingState)
 	}
 }
 
-func elevatorStateToJSON(cabCallsAndElevatorStates ElevatorStates) ([]byte, error) {
+func elevatorStateToJSON(cabCallsAndElevatorStates HallCallsAndElevatorStates) ([]byte, error) {
 	elevatorStates := make(map[string]any, len(cabCallsAndElevatorStates.Elevators))
 
 	for i, elevator := range cabCallsAndElevatorStates.Elevators {
@@ -50,7 +50,7 @@ func elevatorStateToJSON(cabCallsAndElevatorStates ElevatorStates) ([]byte, erro
 			return nil, fmt.Errorf("failed to convert elevator status to string: %w", err)
 		}
 
-		direction, err := elevatorDirectionToString(elevator.Direction)
+		direction, err := elevatorMovingStateToString(elevator.State)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert elevator direction to string: %w", err)
 		}
@@ -71,7 +71,6 @@ func elevatorStateToJSON(cabCallsAndElevatorStates ElevatorStates) ([]byte, erro
 	return json.MarshalIndent(elevatorAssignmentPayload, "", "  ")
 }
 
-// TODO: better function name
 func elevatorAssignmentJSONToMap(jsonData []byte) (ElevatorHallAssignments, error) {
 	var assignments ElevatorHallAssignments
 
@@ -83,7 +82,7 @@ func elevatorAssignmentJSONToMap(jsonData []byte) (ElevatorHallAssignments, erro
 	return assignments, nil
 }
 
-func GetElevatorAssignmentFromHallRequest(cabCallsAndElevatorStates ElevatorStates) (ElevatorHallAssignments, error) {
+func GetHallAssignmentFromHallRequestAndElevatorStates(cabCallsAndElevatorStates HallCallsAndElevatorStates) (ElevatorHallAssignments, error) {
 	cabCallsAndElevatorStates_JSON, err := elevatorStateToJSON(cabCallsAndElevatorStates)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal elevator state: %w", err)
