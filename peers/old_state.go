@@ -9,6 +9,7 @@ Thoughts:
 import(
 	"sanntidslab/network/bcast"
 	//"sanntidslab/network/localip"
+	"sanntidslab/controller"
 	"encoding/json"
 	"math/rand/v2"
 	"sanntidslab/config"
@@ -17,53 +18,42 @@ import(
 	"strconv"
 )
 
+type Elevator struct {
+	LastSeen time.Time
+	Version int
+	State controller.Elevator
+}
+
 type Msg struct{
 	Sender string
-	States map[string]State
+	Elevators map[string]Elevator
 }
 
-type Order struct{
-	Id int
-	Floor int
-	Direction int//Up/down/cab
-}
-
-type State struct{
-	Version int
-	LastSeen time.Time
-	Floor int
-	Direction string
-	Door string
-	HallButtons [config.Floors]int//None/Up/Down/Both
-	CabButtons [config.Floors]bool
-	Orders []Order
-	CompletedOrders []Order
-}
-
-var States = make(map[string]State)
-
+var Elevators = make(map[string]Elevator)
 var myId string
 
 func Broadcaster(){
 // ------Testing------
 	myId = strconv.Itoa(rand.Int())
 	log.Printf("Started broadcaster with id: %s \r\n", myId)
-	
-	myState := State{
-		Version: 1,
-		LastSeen: time.Now(),
-		Floor: 2,
-		Direction: "stop",
-		Door: "closed",
-		HallButtons: [4]int{0,0,0,0},
-		CabButtons: [4]bool{false, false, false, false},
-		Orders: []Order{},
-		CompletedOrders: []Order{},
+	myElevatorState := controller.Elevator{
+		CurrentFloor: 0,
+		NextFloor: 3,
+		Direction: 0,
+		State: 0,
+		//HallButtons: [config.Floors]int{0,0,0,0},
+		//CabButtons: [config.Floors]bool{false, false, false, false},
 	}
 	
-	States[myId] = myState
+	myElevator := Elevator{
+		Version: 1,
+		LastSeen: time.Now(),
+		State: myElevatorState,
+	}
+	
+	Elevators[myId] = myElevator
 
-	jsondata, _ := json.MarshalIndent(States, "", "  ")	
+	jsondata, _ := json.MarshalIndent(Elevators, "", "  ")	
 	log.Println(string(jsondata))
 // -------------------
 
@@ -79,32 +69,32 @@ func Broadcaster(){
 	for{
 		select{
 		case msg := <-rx:
-
 			if msg.Sender != myId{
 				log.Printf("Received message\r\n")
 
-				for rcvdId, rcvdState := range msg.States{
-					HandleReceivedState(rcvdId, rcvdState)
+				for rcvdId, rcvdElevator := range msg.Elevators{
+					HandleReceivedState(rcvdId, rcvdElevator)
 				}
+				rcvdElevator := Elevators[msg.Sender]
+				rcvdElevator.LastSeen = time.Now()
+				Elevators[msg.Sender] = rcvdElevator
 
-				for id, _ := range States{ log.Printf("Saved id: %x \r\n", id) }
+				for id, _ := range Elevators{ log.Printf("Saved id: %x \r\n", id) }
 				//jsondata, _ := json.MarshalIndent(States, "", "  ")	
 				//log.Println(string(jsondata))
 			}
 
 		case <-ticker.C:
-			tx <- Msg{Sender: myId, States: States}
+			tx <- Msg{Sender: myId, Elevators: Elevators}
 			log.Printf("Sent message\r\n")
 		}
 	}
 }
 
-func HandleReceivedState(id string, state State){
+func HandleReceivedState(id string, elevator Elevator){
 	//Either store, update or ignore received state
-	if _, ok := States[id]; !ok{ //If state is not stored
-		States[id] = state
-	} else if state.Version > States[id].Version	{
-		//Check if order is to be handled
-		States[id] = state
+	if _, ok := Elevators[id]; !ok || //If state is not stored
+	elevator.Version > Elevators[id].Version {  //If rcvd elevator state is newer than stored state
+		Elevators[id] = elevator
 	}
 }
