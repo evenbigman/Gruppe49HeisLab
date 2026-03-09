@@ -8,7 +8,6 @@ import (
 
 const (
 	//some constants used for the elevators to avoid magic numbers
-	// TODO: read from file
 	numFloors    = 4
 	maxFloor     = numFloors - 1
 	doorOpenTime = 3 * time.Second
@@ -31,6 +30,7 @@ const (
 	MovingDown
 	DoorOpenHeadingUp
 	DoorOpenHeadingDown
+	DoorOpenIdle
 	Obstructed
 )
 
@@ -256,11 +256,25 @@ func (ec *ElevatorController) completeWaitingOrders() {
 
 func (ec *ElevatorController) moreOrdersAbove() bool {
 	state := ec.GetElevatorState()
-	floorAbove := state.CurrentFloor + 1
 
 	if state.CurrentFloor == maxFloor {
 		return false
 	}
+
+	if ec.moreHallOrdersAbove() {
+		return true
+	}
+
+	if ec.moreCabOrdersAbove() {
+		return true
+	}
+
+	return false
+}
+
+func (ec *ElevatorController) moreHallOrdersAbove() bool {
+	state := ec.GetElevatorState()
+	floorAbove := state.CurrentFloor + 1
 
 	for _, orders := range state.HallOrders[floorAbove:] {
 		for _, orderAbove := range orders {
@@ -268,6 +282,17 @@ func (ec *ElevatorController) moreOrdersAbove() bool {
 				return true
 			}
 		}
+	}
+
+	return false
+}
+
+func (ec *ElevatorController) moreCabOrdersAbove() bool {
+	state := ec.GetElevatorState()
+	floorAbove := state.CurrentFloor + 1
+
+	if state.CurrentFloor == maxFloor {
+		return false
 	}
 
 	for _, orderAbove := range state.CabOrders[floorAbove:] {
@@ -278,9 +303,27 @@ func (ec *ElevatorController) moreOrdersAbove() bool {
 	}
 
 	return false
+
 }
 
 func (ec *ElevatorController) moreOrdersBelow() bool {
+	state := ec.GetElevatorState()
+
+	if state.CurrentFloor == 0 {
+		return false
+	}
+
+	if ec.moreCabOrdersBelow() {
+		return true
+	}
+
+	if ec.moreCabOrdersBelow() {
+		return true
+	}
+	return false
+}
+
+func (ec *ElevatorController) moreHallOrdersBelow() bool {
 	state := ec.GetElevatorState()
 	floorBelow := state.CurrentFloor - 1
 
@@ -295,6 +338,18 @@ func (ec *ElevatorController) moreOrdersBelow() bool {
 			}
 		}
 	}
+
+	return false
+}
+
+func (ec *ElevatorController) moreCabOrdersBelow() bool {
+	state := ec.GetElevatorState()
+	floorBelow := state.CurrentFloor - 1
+
+	if state.CurrentFloor == 0 {
+		return false
+	}
+
 	for _, orderBelow := range state.CabOrders[:floorBelow] {
 		if orderBelow {
 			return true
@@ -305,7 +360,7 @@ func (ec *ElevatorController) moreOrdersBelow() bool {
 
 func (ec *ElevatorController) moreOrders() bool {
 	state := ec.GetElevatorState()
-
+	// NOTE: might change to depend on other functions as some of the checks are already in functions
 	for _, orders := range state.HallOrders {
 		for _, orderActive := range orders {
 			if orderActive {
@@ -373,11 +428,24 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 }
 
 func (ec *ElevatorController) handleNewCabOrder() {
-	// TODO:
+	//should keep moving up only if there are moe cab orders above, and vice versa for down
+	state := ec.GetElevatorState()
+
+	headingUp := (state.State == MovingUp) || (state.State == DoorOpenHeadingUp)
+	headingDown := (state.State == MovingDown) || (state.State == DoorOpenHeadingDown)
+
+	//continue in the direction of travel if there are more cab orders in that direction
+	if ec.moreCabOrdersAbove() && headingUp {
+		return
+	} else if ec.moreCabOrdersBelow() && headingDown {
+		return
+	}
+
+	// set the direction as according to the
+
 }
 
 func (ec *ElevatorController) handleNewHallOrder() {
-	// TODO: Add condition for the elevator being in the floor that is requested
 	state := ec.GetElevatorState()
 
 	if state.State == Idle {
@@ -387,6 +455,12 @@ func (ec *ElevatorController) handleNewHallOrder() {
 		} else if ec.moreOrdersBelow() {
 			ec.setState(MovingDown)
 			ec.elevatorDriveDown()
+		} else if state.HallOrders[state.CurrentFloor][up] {
+			ec.setState(MovingUp)
+			ec.openDoor()
+		} else if state.HallOrders[state.CurrentFloor][down] {
+			ec.openDoor()
+			ec.setState(MovingDown)
 		}
 	}
 }
@@ -469,17 +543,24 @@ func (ec *ElevatorController) clearCabOrder(floor int) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.CabOrders[floor] = false
+	ec.elevator.PressedCabButtons[floor] = false
 	ec.notfiyCabOrders()
 	ec.notifyState()
+	ec.notfiyButton()
 }
 
 func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.HallOrders[floor][direction] = false
+	ec.elevator.PressedHallButtons[floor][direction] = false
 	ec.notfiyHallOrders()
 	ec.notifyState()
 }
 
 // TODO: Add functionality to consider latest cab button pressed when someone enters an elevator if it should change direction
 // TODO: Add functionality to get configs from a file
+// TODO: Find what parts might benefit from an acceptance test
+// TODO: Create Acceptance tests for the parts that need it
+// FIX: Set State does not take into consideration wether or not the elevator is in an "Error State" like obstructed
+// FIX: Make obstructed wait for the door to open before it can set the state
