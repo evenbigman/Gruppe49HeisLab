@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"sanntidslab/elevio"
 	"sync"
 	"time"
@@ -35,12 +36,13 @@ const (
 )
 
 type Elevator struct {
-	CurrentFloor       int
-	HallOrders         [numFloors][2]bool
-	CabOrders          [numFloors]bool
-	State              ElevatorState
-	PressedHallButtons [numFloors][2]bool
-	PressedCabButtons  [numFloors]bool
+	CurrentFloor        int
+	HallOrders          [numFloors][2]bool
+	CabOrders           [numFloors]bool
+	State               ElevatorState
+	PressedHallButtons  [numFloors][2]bool
+	PressedCabButtons   [numFloors]bool
+	obstructionNotified bool
 }
 
 type ElevatorController struct {
@@ -213,8 +215,8 @@ func (ec *ElevatorController) pollElevatorState() {
 			ec.notifyFloor()
 			ec.notifyState()
 
-		case <-obstruction:
-			ec.setState(Obstructed)
+		case v := <-obstruction:
+			ec.elevator.obstructionNotified = v
 			ec.notifyObstruciton()
 			ec.notifyState()
 
@@ -250,6 +252,7 @@ func (ec *ElevatorController) completeWaitingOrders() {
 			ec.handleNewCabOrder()
 		case <-hallOrderCh:
 			ec.handleNewHallOrder()
+			fmt.Println("Handled hall order, got state:", ec.GetElevatorState().State)
 		}
 	}
 }
@@ -308,16 +311,19 @@ func (ec *ElevatorController) moreCabOrdersAbove() bool {
 
 func (ec *ElevatorController) moreOrdersBelow() bool {
 	state := ec.GetElevatorState()
+	fmt.Println("Checking orders below")
 
 	if state.CurrentFloor == 0 {
 		return false
 	}
 
+	fmt.Println("Checking cab orders")
+
 	if ec.moreCabOrdersBelow() {
 		return true
 	}
 
-	if ec.moreCabOrdersBelow() {
+	if ec.moreHallOrdersBelow() {
 		return true
 	}
 	return false
@@ -325,13 +331,15 @@ func (ec *ElevatorController) moreOrdersBelow() bool {
 
 func (ec *ElevatorController) moreHallOrdersBelow() bool {
 	state := ec.GetElevatorState()
-	floorBelow := state.CurrentFloor - 1
 
 	if state.CurrentFloor == 0 {
+		fmt.Println("Was at the bottom floor, cant be orders below")
 		return false
 	}
 
-	for _, orders := range state.HallOrders[:floorBelow] {
+	fmt.Println("Checking Hall orders")
+	for i, orders := range state.HallOrders[:state.CurrentFloor] {
+		fmt.Println("Checking hall orders for floor:", i)
 		for _, orderBelow := range orders {
 			if orderBelow {
 				return true
@@ -344,13 +352,12 @@ func (ec *ElevatorController) moreHallOrdersBelow() bool {
 
 func (ec *ElevatorController) moreCabOrdersBelow() bool {
 	state := ec.GetElevatorState()
-	floorBelow := state.CurrentFloor - 1
 
 	if state.CurrentFloor == 0 {
 		return false
 	}
 
-	for _, orderBelow := range state.CabOrders[:floorBelow] {
+	for _, orderBelow := range state.CabOrders[:state.CurrentFloor] {
 		if orderBelow {
 			return true
 		}
@@ -380,51 +387,66 @@ func (ec *ElevatorController) moreOrders() bool {
 
 func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	state := ec.GetElevatorState()
+	floor := state.CurrentFloor
+	fmt.Println("Got to floor ", floor)
 
-	ec.clearCabOrder(state.CurrentFloor)
-
-	if state.CurrentFloor == maxFloor || !ec.moreOrdersAbove() {
-		if ec.moreOrdersBelow() {
-			ec.clearHallorder(state.CurrentFloor, down)
-			ec.setState(MovingDown)
-			ec.stopElevatorAtCurrentFloor()
-			ec.elevatorDriveDown()
-		} else {
-			ec.stopElevator()
-			ec.setState(Idle)
-		}
-		return
+	if state.CabOrders[floor] || state.HallOrders[floor][up] || floor == maxFloor {
+		ec.stopElevatorAtCurrentFloor()
+		ec.clearCabOrder(state.CurrentFloor)
+		ec.clearHallorder(floor, up)
 	}
 
 	if ec.moreOrdersAbove() {
-		ec.clearHallorder(state.CurrentFloor, up)
-		ec.stopElevatorAtCurrentFloor()
-	}
-
-}
-
-func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
-	state := ec.GetElevatorState()
-	ec.clearCabOrder(state.CurrentFloor)
-
-	if state.CurrentFloor == 0 || !ec.moreOrdersBelow() {
-		if ec.moreOrdersAbove() {
-			ec.clearHallorder(state.CurrentFloor, up)
-			ec.setState(MovingUp)
-			ec.stopElevatorAtCurrentFloor()
-			ec.elevatorDriveUp()
-		} else {
-			ec.stopElevator()
-			ec.setState(Idle)
-		}
+		ec.setState(MovingUp)
+		ec.elevatorDriveUp()
+		ec.clearHallorder(floor, up)
 		return
 	}
 
 	if ec.moreOrdersBelow() {
-		ec.clearHallorder(state.CurrentFloor, down)
-		ec.stopElevatorAtCurrentFloor()
+		ec.setState(MovingDown)
+		ec.elevatorDriveDown()
+		ec.clearHallorder(floor, down)
+		return
 	}
 
+	if state.HallOrders[floor][down] {
+		ec.stopElevatorAtCurrentFloor()
+		ec.clearHallorder(floor, down)
+	}
+
+	ec.setState(Idle)
+}
+
+func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
+	state := ec.GetElevatorState()
+	floor := state.CurrentFloor
+
+	if state.CabOrders[floor] || state.HallOrders[floor][down] || floor == 0 {
+		ec.stopElevatorAtCurrentFloor()
+		ec.clearHallorder(floor, down)
+		ec.clearCabOrder(state.CurrentFloor)
+	}
+
+	if ec.moreOrdersBelow() {
+		ec.setState(MovingDown)
+		ec.elevatorDriveDown()
+		ec.clearHallorder(floor, down)
+		return
+	}
+
+	if ec.moreOrdersAbove() {
+		ec.setState(MovingUp)
+		ec.elevatorDriveUp()
+		ec.clearHallorder(floor, up)
+		return
+	}
+
+	if state.HallOrders[floor][up] {
+		ec.stopElevatorAtCurrentFloor()
+		ec.clearHallorder(floor, up)
+	}
+	ec.setState(Idle)
 }
 
 func (ec *ElevatorController) handleNewCabOrder() {
@@ -441,28 +463,108 @@ func (ec *ElevatorController) handleNewCabOrder() {
 		return
 	}
 
-	// set the direction as according to the
+	// set the direction as according to the new orders
+	if ec.moreCabOrdersBelow() {
+		ec.setState(MovingDown)
+		ec.elevatorDriveDown()
+	} else if ec.moreCabOrdersAbove() {
+		ec.setState(MovingUp)
+		ec.elevatorDriveUp()
+	}
 
 }
 
 func (ec *ElevatorController) handleNewHallOrder() {
 	state := ec.GetElevatorState()
+	floor := state.CurrentFloor
 
-	if state.State == Idle {
+	switch state.State {
+	case MovingDown:
+		return
+	case MovingUp:
+		return
+	case DoorOpenHeadingDown:
+		return
+	case DoorOpenHeadingUp:
+		return
+	case Idle:
+		state := ec.GetElevatorState()
+		fmt.Println("Checking what to do when idle and getting a new order")
+		if state.HallOrders[floor][up] {
+			ec.setState(MovingUp)
+			ec.stopElevatorAtCurrentFloor()
+			return
+		}
+
+		if state.HallOrders[floor][down] {
+			ec.setState(MovingDown)
+			ec.stopElevatorAtCurrentFloor()
+			return
+		}
+
+		if ec.moreOrdersAbove() {
+			ec.setState(MovingUp)
+			ec.elevatorDriveUp()
+			return
+		}
+
+		if ec.moreOrdersBelow() {
+			ec.setState(MovingDown)
+			ec.elevatorDriveDown()
+			return
+		}
+	case DoorOpenIdle:
+		if state.HallOrders[floor][up] {
+			ec.setState(MovingUp)
+			ec.stopElevatorAtCurrentFloor()
+			ec.elevatorDriveUp()
+			return
+		}
+
+		if state.HallOrders[floor][down] {
+			ec.setState(MovingDown)
+			ec.stopElevatorAtCurrentFloor()
+			ec.elevatorDriveDown()
+			return
+		}
+
+		if ec.moreOrdersAbove() {
+			ec.setState(MovingUp)
+			ec.elevatorDriveUp()
+			return
+		}
+
+		if ec.moreOrdersBelow() {
+			ec.setState(MovingDown)
+			ec.elevatorDriveDown()
+			return
+		}
+
+	case Obstructed:
+		//do some other shit
+	}
+
+	/*if state.State == Idle {
 		if ec.moreOrdersAbove() {
 			ec.setState(MovingUp)
 			ec.elevatorDriveUp()
 		} else if ec.moreOrdersBelow() {
 			ec.setState(MovingDown)
 			ec.elevatorDriveDown()
-		} else if state.HallOrders[state.CurrentFloor][up] {
-			ec.setState(MovingUp)
-			ec.openDoor()
-		} else if state.HallOrders[state.CurrentFloor][down] {
-			ec.openDoor()
-			ec.setState(MovingDown)
+		} else if state.HallOrders[floor][up] {
+			if ec.moreOrdersAbove() {
+				ec.setState(MovingUp)
+			}
+			ec.stopElevatorAtCurrentFloor()
+			ec.clearHallorder(floor, up)
+		} else if state.HallOrders[floor][down] {
+			if ec.moreOrdersBelow() {
+				ec.setState(MovingDown)
+			}
+			ec.stopElevatorAtCurrentFloor()
+			ec.clearHallorder(floor, down)
 		}
-	}
+	}*/
 }
 
 func (ec *ElevatorController) openDoor() {
@@ -470,13 +572,29 @@ func (ec *ElevatorController) openDoor() {
 }
 
 func (ec *ElevatorController) closeDoor() {
-	state := ec.GetElevatorState()
-	if state.State == Obstructed {
+	if ec.elevator.obstructionNotified {
+		headingUp := ec.GetElevatorState().State == DoorOpenHeadingUp
+		headingDown := ec.GetElevatorState().State == DoorOpenHeadingDown
+		ec.setState(Obstructed)
 		for range ec.obstructionSubscriber {
+			state := ec.GetElevatorState()
+			if state.obstructionNotified {
+				break
+			}
+		}
+
+		if headingUp {
+			ec.setState(DoorOpenHeadingUp)
+		} else if headingDown {
+			ec.setState(DoorOpenHeadingDown)
+		} else {
+			ec.setState(DoorOpenIdle)
 		}
 	}
 	elevio.SetDoorOpenLamp(false)
+
 } // FIX: Cant handle repeated obstruction
+// NOTE: Might not need to handle repeated obstruction, as the doors are "Instantanious"
 
 func (ec *ElevatorController) stopElevatorAtCurrentFloor() {
 	ec.stopElevator()
@@ -488,16 +606,21 @@ func (ec *ElevatorController) stopElevatorAtCurrentFloor() {
 		ec.setState(DoorOpenHeadingUp)
 	case MovingDown:
 		ec.setState(DoorOpenHeadingDown)
+	default:
+		ec.setState(DoorOpenIdle)
 	}
 
 	time.Sleep(doorOpenTime)
 	ec.closeDoor()
 
+	state = ec.GetElevatorState()
 	switch state.State {
 	case DoorOpenHeadingUp:
 		ec.setState(MovingUp)
 	case DoorOpenHeadingDown:
 		ec.setState(MovingDown)
+	case DoorOpenIdle:
+		ec.setState(Idle)
 	}
 
 }
@@ -558,9 +681,32 @@ func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
 	ec.notifyState()
 }
 
-// TODO: Add functionality to consider latest cab button pressed when someone enters an elevator if it should change direction
-// TODO: Add functionality to get configs from a file
+func (es ElevatorState) String() string {
+	switch es {
+	case Idle:
+		return "Idle"
+	case MovingUp:
+		return "Moving Up"
+	case MovingDown:
+		return "Moving Down"
+	case DoorOpenHeadingUp:
+		return "Door Open Moving Up"
+	case DoorOpenHeadingDown:
+		return "Door Open Moving Down"
+	case DoorOpenIdle:
+		return "Door Open Idle"
+	case Obstructed:
+		return "Obstructed"
+	default:
+		return ""
+	}
+
+}
+
+// TODO: Add functionality to get configs from a file or as input to init
 // TODO: Find what parts might benefit from an acceptance test
 // TODO: Create Acceptance tests for the parts that need it
 // FIX: Set State does not take into consideration wether or not the elevator is in an "Error State" like obstructed
-// FIX: Make obstructed wait for the door to open before it can set the state
+// FIX: Drive elevator up/down does not consider if the door is open or obstructed
+// FIX: Obstruction breaks the elevator, and keeps the door open forever
+// FIX: The elevator does not anounce change in direction if the cab orders make the instrucitons different
