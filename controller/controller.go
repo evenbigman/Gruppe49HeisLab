@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"fmt"
+	"sanntidslab/config"
 	"sanntidslab/elevio"
 	"sync"
 	"time"
@@ -8,11 +10,12 @@ import (
 
 const (
 	//some constants used for the elevators to avoid magic numbers
-	numFloors    = 4
-	maxFloor     = numFloors - 1
-	doorOpenTime = 3 * time.Second
+	numFloors    = config.NumFloors
+	maxFloor     = config.MaxFloor
+	doorOpenTime = config.DoorOpenTime
+	defaultPort  = config.DefaultElevioPort
 	undefined    = -1
-	defaultPort  = "15657"
+	motorTimeout = 10 * time.Second
 )
 
 type directions int
@@ -32,15 +35,17 @@ const (
 	DoorOpenHeadingDown
 	DoorOpenIdle
 	Obstructed
+	MotorFailure
 )
 
 type Elevator struct {
-	CurrentFloor       int
-	HallOrders         [numFloors][2]bool
-	CabOrders          [numFloors]bool
-	State              ElevatorState
-	PressedHallButtons [numFloors][2]bool
-	PressedCabButtons  [numFloors]bool
+	CurrentFloor        int
+	AssignedHallOrders  [numFloors][2]bool
+	ConfirmedHallOrders [numFloors][2]bool
+	CabOrders           [numFloors]bool
+	State               ElevatorState
+	PressedHallButtons  [numFloors][2]bool
+	PressedCabButtons   [numFloors]bool
 }
 
 type ElevatorController struct {

@@ -1,71 +1,75 @@
 package status
+//TODO: Add proper error handling
+//TODO: Add subscriber model to get status changes of peers on a channel
+//TODO: Make singelton
 
 import(
-	"sanntidslab/controller"
 	"time"
-	"log"
 	"sync"
 )
-
-/*statusManager
-statusManager struct: maop[struct]peerInfo, timeout
-Functions:
-1. Init
-2. UpdateHeartbeat of peer
-3. Get Status
-*/
 
 type status struct{
 	LastSeen time.Time
 	Connected bool
 }
 
-type statusManager struct{
+type StatusManager struct{
 	peers map[string]status
 	timeout time.Duration
 	interval time.Duration
-	mutex sync.Mutex
+	mutex sync.RWMutex
 }
 
-func NewStatusManager(timeout time.Duration, interval time.Duration) *statusManager{
-	pm := &statusManager{
+func NewStatusManager(timeout time.Duration, interval time.Duration) *StatusManager{
+	sm := &StatusManager{
 		timeout:  timeout,
 		interval: interval,
 		peers: make(map[string]status),
 	}
-	return pm
+	return sm
 }
 
-func (pm *statusManager) Run(){
-	ticker := time.NewTicker(pm.interval)
+func (sm *StatusManager) Run(){
+	ticker := time.NewTicker(sm.interval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		pm.update()
+		sm.update()
 	}
 }
 
-func (pm *statusManager) UpdateHeartbeat(peerID string){
-	pm.mutex.Lock()	
-	defer pm.mutex.Unlock()
+func (sm *StatusManager) UpdateStatus(peerID string){
+	sm.mutex.Lock()	
+	defer sm.mutex.Unlock()
 	
-	_, peerIsStored := pm.peers[peerID]
+	_, peerIsStored := sm.peers[peerID]
 	if !peerIsStored{
-		pm.peers[peerID] = status{
+		sm.peers[peerID] = status{
 			LastSeen: time.Now(),
 			Connected: true,
 		}
 	}
 }
 
-func (pm *statusManager) update(){
-	pm.mutex.Lock()	
-	defer pm.mutex.Unlock()
+func (sm *StatusManager) GetStatus() map[string]status{
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	
+	output := make(map[string]status, len(sm.peers))
+	for id, storedStatus := range sm.peers {
+		output[id] = storedStatus 
+	}
+	return output
+}
 
-	for id, peer := range pm.peers{
-		if time.Since(peer.LastSeen) >= pm.timeout {
+func (sm *StatusManager) update(){
+	sm.mutex.Lock()	
+	defer sm.mutex.Unlock()
+
+	for id, peer := range sm.peers{
+		if time.Since(peer.LastSeen) >= sm.timeout {
 			peer.Connected = false
-			pm.peers[id] = peer
+			sm.peers[id] = peer
 		}	
 	}
 }

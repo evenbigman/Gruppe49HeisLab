@@ -1,22 +1,11 @@
 package snapshots
+//TODO: Add proper error handling
+//TODO: Add subscriber model to get snapshot changes of peers on a channel
 
 import(
 	"sanntidslab/controller"
-	"time"
-	"log"
 	"sync"
 )
-
-
-/* Snapshot MANAGER
-Type contains: map of all elevator snapshots, mutex for it, its own ID
-Functions:
-1. Init
-2. Merge changes received from internet
-3. Merge own changes received from controller
-4. Read elevator states 
-5. Allow for subscribing to changes
-*/
 
 type Snapshot struct{
 	Version int
@@ -43,7 +32,7 @@ func NewSnapshotManager(myID string, initialElevator controller.Elevator) *Snaps
 }
 
 //Takes incoming state, updates if necessary
-func (sm *SnapshotManager) UpdatePeerSnapshots(incomingSnapshots map[string]Snapshot){
+func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[string]Snapshot){
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	
