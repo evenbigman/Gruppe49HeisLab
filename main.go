@@ -1,7 +1,16 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	backuphandler "sanntidslab/backup_handler"
+	"time"
+)
 
 func main() {
-	fmt.Println("hei")
+	backuphandler.EnsurePrimary()
+
+	for {
+		fmt.Println("Running elevator stuff")
+		time.Sleep(2 * time.Second)
+	}
 }
