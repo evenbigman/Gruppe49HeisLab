@@ -1,6 +1,9 @@
 package snapshots
+//TODO: Add logging
 //TODO: Add proper error handling
 //TODO: Add subscriber model to get snapshot changes of peers on a channel
+//TODO: MAke singellton
+//TODO: Prevent integer overflow on version number
 
 import(
 	"sanntidslab/controller"
@@ -13,48 +16,46 @@ type Snapshot struct{
 }
 type SnapshotManager struct{
 	mutex sync.RWMutex
-	elevators map[string]Snapshot
+	snapshots map[string]Snapshot
 	myID string
 }
 
-func NewSnapshotManager(myID string, initialElevator controller.Elevator) *SnapshotManager{
+func NewSnapshotManager(myID string) *SnapshotManager{
 	sm := &SnapshotManager{
 		myID: myID,
-		elevators: make(map[string]Snapshot),
 	}	
-	
-	sm.elevators[myID] = Snapshot{
-		Version: 0,
-		Elevator: initialElevator,
-	}
 
 	return sm
 }
 
-//Takes incoming state, updates if necessary
-func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[string]Snapshot){
+//Takes incoming state, updates if necessary. Also checks if new order has come :O
+func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[string]Snapshot) bool{
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
+
+	newOrderFound := false
 	
 	for rcvdID, rcvdSnapshot := range incomingSnapshots{
 		if rcvdID == sm.myID{
 			continue
 		}
 		
-		storedSnapshot, elevatorIsStored := sm.elevators[rcvdID]
+		storedSnapshot, elevatorIsStored := sm.snapshots[rcvdID]
 		if !elevatorIsStored ||
 		rcvdSnapshot.Version > storedSnapshot.Version {
-			sm.elevators[rcvdID] = rcvdSnapshot
+			newOrderFound = sm.checkIfNewOrder(rcvdID, rcvdSnapshot)
+			sm.snapshots[rcvdID] = rcvdSnapshot
 		}
 	}
+	return newOrderFound
 }
 
 func (sm *SnapshotManager) UpdateLocalSnapshot(localElevator controller.Elevator) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	previousSnapshot := sm.elevators[sm.myID]
-	sm.elevators[sm.myID] = Snapshot{
+	previousSnapshot := sm.snapshots[sm.myID]
+	sm.snapshots[sm.myID] = Snapshot{
 		Version: previousSnapshot.Version + 1,
 		Elevator: localElevator,
 	}
@@ -64,9 +65,33 @@ func (sm *SnapshotManager) GetSnapshots() map[string]Snapshot{
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	
-	output := make(map[string]Snapshot, len(sm.elevators))
-	for id, storedSnapshot := range sm.elevators {
+	output := make(map[string]Snapshot, len(sm.snapshots))
+	for id, storedSnapshot := range sm.snapshots {
 		output[id] = storedSnapshot 
 	}
 	return output
+}
+
+//Not very good, really goes into controller module
+func (sm *SnapshotManager) checkIfNewOrder(ID string, newSnapshot Snapshot) bool{
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	newOrderFound := false
+
+	oldSnapshot, elevatorIsStored := sm.snapshots[ID]		
+	
+	//Check for every hall order (up and down)
+	for i, floor := range newSnapshot.Elevator.PressedHallButtons{
+		for j, orderExists := range floor{
+			//If order is already stored, does the new state contain a new order?
+			if elevatorIsStored{
+				oldOrderExists := oldSnapshot.Elevator.PressedHallButtons[i][j]
+				if !oldOrderExists && orderExists{
+					newOrderFound = true
+				}
+			}
+		}
+	}
+	return newOrderFound
 }

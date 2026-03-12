@@ -1,5 +1,6 @@
 package status
 //TODO: Add proper error handling
+//TODO: Add logging
 //TODO: Add subscriber model to get status changes of peers on a channel
 //TODO: Make singelton
 
@@ -14,6 +15,7 @@ type status struct{
 }
 
 type StatusManager struct{
+	DisconnectedPeerCh chan struct{}
 	peers map[string]status
 	timeout time.Duration
 	interval time.Duration
@@ -22,6 +24,7 @@ type StatusManager struct{
 
 func NewStatusManager(timeout time.Duration, interval time.Duration) *StatusManager{
 	sm := &StatusManager{
+		DisconnectedPeerCh: make(chan struct{}),
 		timeout:  timeout,
 		interval: interval,
 		peers: make(map[string]status),
@@ -70,6 +73,7 @@ func (sm *StatusManager) update(){
 		if time.Since(peer.LastSeen) >= sm.timeout {
 			peer.Connected = false
 			sm.peers[id] = peer
+			sm.DisconnectedPeerCh <- struct{}{}
 		}	
 	}
 }
