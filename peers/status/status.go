@@ -1,6 +1,7 @@
 package status
 //TODO: Add proper error handling
 //TODO: Add subscriber model to get status changes of peers on a channel
+//TODO: Make singelton
 
 import(
 	"time"
@@ -12,15 +13,15 @@ type status struct{
 	Connected bool
 }
 
-type statusManager struct{
+type StatusManager struct{
 	peers map[string]status
 	timeout time.Duration
 	interval time.Duration
 	mutex sync.RWMutex
 }
 
-func NewStatusManager(timeout time.Duration, interval time.Duration) *statusManager{
-	sm := &statusManager{
+func NewStatusManager(timeout time.Duration, interval time.Duration) *StatusManager{
+	sm := &StatusManager{
 		timeout:  timeout,
 		interval: interval,
 		peers: make(map[string]status),
@@ -28,7 +29,7 @@ func NewStatusManager(timeout time.Duration, interval time.Duration) *statusMana
 	return sm
 }
 
-func (sm *statusManager) Run(){
+func (sm *StatusManager) Run(){
 	ticker := time.NewTicker(sm.interval)
 	defer ticker.Stop()
 
@@ -37,7 +38,7 @@ func (sm *statusManager) Run(){
 	}
 }
 
-func (sm *statusManager) UpdateStatus(peerID string){
+func (sm *StatusManager) UpdateStatus(peerID string){
 	sm.mutex.Lock()	
 	defer sm.mutex.Unlock()
 	
@@ -50,7 +51,7 @@ func (sm *statusManager) UpdateStatus(peerID string){
 	}
 }
 
-func (sm *statusManager) GetStatus() map[string]status{
+func (sm *StatusManager) GetStatus() map[string]status{
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	
@@ -61,7 +62,7 @@ func (sm *statusManager) GetStatus() map[string]status{
 	return output
 }
 
-func (sm *statusManager) update(){
+func (sm *StatusManager) update(){
 	sm.mutex.Lock()	
 	defer sm.mutex.Unlock()
 
