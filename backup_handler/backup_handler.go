@@ -21,27 +21,42 @@ func EnsurePrimary() {
 
 	if isBackup {
 		waitForPrimaryToDie(primaryPid)
+		fmt.Println("primary died, promoting to primary")
 	}
 
-	err := createBackup()
-	if err != nil {
-		fmt.Printf("error spawning backup: %v\n", err)
+	go watchBackupAndRespawn()
+}
+
+func watchBackupAndRespawn() {
+	for {
+		cmd, err := createBackup()
+		if err != nil {
+			fmt.Printf("error spawning backup: %v\n", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		cmd.Wait()
+		fmt.Println("backup died, respawning...")
 	}
 }
 
-func createBackup() error {
+func createBackup() (*exec.Cmd, error) {
 	myPid := os.Getpid()
 
 	executablePath, err := os.Executable()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	cmd := exec.Command("cmd", "/C", "start", "Backup Monitor", "cmd", "/K", executablePath, "-backup=true", "-pid="+strconv.Itoa(myPid))
+	const createNewConsole = 0x00000010
+	cmd := exec.Command(executablePath, "-backup=true", "-pid="+strconv.Itoa(myPid))
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: createNewConsole,
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
-	return cmd.Start()
+	err = cmd.Start()
+	return cmd, err
 }
 
 func waitForPrimaryToDie(pid int) {
