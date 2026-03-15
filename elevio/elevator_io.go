@@ -134,6 +134,15 @@ func GetFloor() int {
 	}
 }
 
+func IsAtFloor() bool {
+	a := read([4]byte{7, 0, 0, 0})
+	if a[0] != 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
 func GetStop() bool {
 	a := read([4]byte{8, 0, 0, 0})
 	return toBool(a[1])
