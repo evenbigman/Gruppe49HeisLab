@@ -83,9 +83,18 @@ func (pm *PeerManager) Run() error{
 }
 
 func (pm *PeerManager) GetMySnapshot() (controller.Elevator, error) {
+	snapshot, err := pm.getSnapshot(pm.myID)
+	return snapshot, err
+
+}
+
+func (pm *PeerManager) getSnapshot(ID uint64) (controller.Elevator, error) {
 	sm := pm.snapshotManager
-	snapshot, err := sm.GetSnapshot(pm.myID)
-	if err != nil{
+	snapshots := sm.GetSnapshots()
+
+	snapshot, ok := snapshots[ID]
+	if !ok {
+		err := fmt.Errorf("Snapshot for ID: %d not found", ID)
 		return controller.Elevator{}, err
 	}
 	
