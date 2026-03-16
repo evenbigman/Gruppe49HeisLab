@@ -84,7 +84,6 @@ func (ec *ElevatorController) Start() error {
 	if instance == nil {
 		return fmt.Errorf("Error, not initialized. Call InitElevator, or InitElevatorWithConfig first")
 	}
-	go ec.pollElevatorState()
 	go ec.completeWaitingOrders()
 	go ec.handleLights()
 	go ec.watchdogMotor()
@@ -100,8 +99,13 @@ func (ec *ElevatorController) InitElevator(port ...string) {
 		address := "localhost:" + p
 		elevio.Init(address, numFloors)
 
+		go ec.pollElevatorState()
+		floorch := ec.SubscribeFloor()
+		defer ec.UnsubscribeFloor(floorch) // NOTE: Hacky
+
 		ec.stateLock.Lock()
 		ec.elevator.CurrentFloor = elevio.GetFloor()
+		fmt.Println("Started in floor: ", ec.elevator.CurrentFloor)
 		ec.stateLock.Unlock()
 
 		state := ec.GetElevatorState()
@@ -109,8 +113,8 @@ func (ec *ElevatorController) InitElevator(port ...string) {
 			ec.closeDoor()
 			ec.elevatorDriveDown()
 			ec.setState(MovingDown)
-			for !elevio.IsAtFloor() {
-
+			for range floorch { // NOTE: Hacky
+				break
 			}
 			ec.stopElevator()
 			ec.setState(Idle)
@@ -678,14 +682,17 @@ func (ec *ElevatorController) stopElevatorAtCurrentFloor() error {
 }
 
 func (ec *ElevatorController) stopElevator() {
+	fmt.Println("Motor stopped")
 	elevio.SetMotorDirection(elevio.MD_Stop)
 }
 
 func (ec *ElevatorController) elevatorDriveUp() {
+	fmt.Println("Driving up")
 	elevio.SetMotorDirection(elevio.MD_Up)
 }
 
 func (ec *ElevatorController) elevatorDriveDown() {
+	fmt.Println("Driving down")
 	elevio.SetMotorDirection(elevio.MD_Down)
 }
 
