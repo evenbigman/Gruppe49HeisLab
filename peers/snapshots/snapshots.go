@@ -53,17 +53,6 @@ func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot)
 	return newOrderFound, ackedVersion
 }
 
-func (sm *SnapshotManager) UpdateMySnapshot(localElevator controller.Elevator) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	previousSnapshot := sm.snapshots[sm.myID]
-	sm.snapshots[sm.myID] = Snapshot{
-		Version: previousSnapshot.Version + 1,
-		Elevator: localElevator,
-	}
-}
-
 func (sm *SnapshotManager) SetSnapshot(ID uint64, version int, elevator controller.Elevator) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
