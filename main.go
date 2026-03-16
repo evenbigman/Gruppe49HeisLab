@@ -1,7 +1,7 @@
 package main
 
 import (
-	backup "sanntidslab/backup_handler"
+//	backup "sanntidslab/backup_handler"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	hallrequestassigner "sanntidslab/hall_request_assigner"
@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	backup.Init()
+//	backup.Init()
 
 	pm := peers.NewPeerManager()
 
@@ -35,6 +35,8 @@ func main() {
 
 	for {
 		select {
+		case <-pm.NewOrderCh:
+		case <-pm.DisconnectedPeerCh:
 		case <-buttonCh:
 			stateToAck := ec.GetElevatorState()
 			go func() {
@@ -72,5 +74,4 @@ func main() {
 			pm.SetMySnapshot(state)
 		}
 	}
-
 }
