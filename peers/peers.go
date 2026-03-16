@@ -9,6 +9,7 @@ import(
 	"sanntidslab/peers/snapshots"
 	"sanntidslab/peers/broadcast"
 	"sanntidslab/config"
+	"sanntidslab/controller"
 	"log"
 	"net"
 	"time"
@@ -81,6 +82,12 @@ func (pm *PeerManager) Run() error{
 	}
 }
 
+func (pm *PeerManager) GetMySnapshot() controller.Elevator {
+	sm := pm.snapshotManager
+	snapshot := sm.GetSnapshot(pm.myID)
+	
+	return snapshot.Elevator
+}
 
 func getMyID() uint64{ //Get mac address
 	interfaces, err := net.Interfaces()
