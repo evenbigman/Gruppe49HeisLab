@@ -72,14 +72,16 @@ func (pm *PeerManager) Run() error{
 	for{
 		select{
 		case msg := <-pm.broadcastRx:
-			pm.statusManager.UpdateStatus(msg.Sender)
-			newOrderFound, ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
+			if msg.Sender != pm.myID{
+				pm.statusManager.UpdateStatus(msg.Sender)
+				newOrderFound, ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
-			pm.lastAckedVersion = ackedVersion
-			pm.ackNotifyCh <- struct{}{}
+				pm.lastAckedVersion = ackedVersion
+				pm.ackNotifyCh <- struct{}{}
 
-			if newOrderFound{
-				pm.NewOrderCh <- struct{}{}			
+				if newOrderFound{
+					pm.NewOrderCh <- struct{}{}			
+				}
 			}
 			
 		case <-ticker.C:
