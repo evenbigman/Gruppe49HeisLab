@@ -70,7 +70,12 @@ var (
 // Public funcitons
 func GetController() *ElevatorController {
 	instanceOnce.Do(func() {
-		instance = &ElevatorController{}
+		instance = &ElevatorController{
+			elevator: Elevator{
+				CurrentFloor: undefined,
+				State:        Idle,
+			},
+		}
 	})
 	return instance
 }
@@ -95,7 +100,21 @@ func (ec *ElevatorController) InitElevator(port ...string) {
 		address := "localhost:" + p
 		elevio.Init(address, numFloors)
 
-		//could add functionality to ensure that the elevator knows its current floor if it is between floors when starting.
+		ec.stateLock.Lock()
+		ec.elevator.CurrentFloor = elevio.GetFloor()
+		ec.stateLock.Unlock()
+
+		state := ec.GetElevatorState()
+		if state.CurrentFloor == -1 {
+			ec.closeDoor()
+			ec.elevatorDriveDown()
+			ec.setState(MovingDown)
+			for !elevio.IsAtFloor() {
+
+			}
+			ec.stopElevator()
+			ec.setState(Idle)
+		}
 	})
 }
 
