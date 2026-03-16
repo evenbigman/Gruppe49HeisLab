@@ -4,11 +4,11 @@ package snapshots
 //TODO: Add subscriber model to get snapshot changes of peers on a channel
 //TODO: MAke singellton
 //TODO: Prevent integer overflow on version number
+//TODO: Refactor MergeSnapshots
 
 import(
 	"sanntidslab/controller"
 	"sync"
-	"fmt"
 )
 
 type Snapshot struct{
@@ -29,15 +29,17 @@ func NewSnapshotManager(myID uint64) *SnapshotManager{
 	return sm
 }
 
-//Takes incoming state, updates if necessary. Also checks if new order has come :O
-func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) bool{
+//Takes incoming state, updates if necessary. Also checks if new order has come :O And returnsed lowest version they have of our state
+func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (bool, int){
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
 	newOrderFound := false
+	ackedVersion := 0
 	
 	for rcvdID, rcvdSnapshot := range incomingSnapshots{
 		if rcvdID == sm.myID{
+			ackedVersion = rcvdSnapshot.Version
 			continue
 		}
 		
@@ -48,7 +50,7 @@ func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot)
 			sm.snapshots[rcvdID] = rcvdSnapshot
 		}
 	}
-	return newOrderFound
+	return newOrderFound, ackedVersion
 }
 
 func (sm *SnapshotManager) UpdateMySnapshot(localElevator controller.Elevator) {

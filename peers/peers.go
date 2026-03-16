@@ -10,6 +10,7 @@ import(
 	"sanntidslab/peers/broadcast"
 	"sanntidslab/config"
 	"sanntidslab/controller"
+	"sync"
 	"log"
 	"net"
 	"time"
@@ -25,6 +26,9 @@ type PeerManager struct{
 	snapshotManager *snapshots.SnapshotManager
 	statusManager *status.StatusManager
 	initialized bool
+	lastAckedVersion int
+	ackMutex sync.Mutex
+	ackNotifyCh chan struct{}
 } 
 
 func NewPeerManager() *PeerManager{
@@ -38,6 +42,8 @@ func NewPeerManager() *PeerManager{
 		snapshotManager: snapshots.NewSnapshotManager(myID),
 		statusManager: status.NewStatusManager(config.BcastInterval, config.TimeoutInterval),
 		initialized: false,
+		lastAckedVersion: 0,
+		ackNotifyCh: make(chan struct{}, 1),
 	}
 	return pm
 }
@@ -66,7 +72,11 @@ func (pm *PeerManager) Run() error{
 		select{
 		case msg := <-pm.broadcastRx:
 			pm.statusManager.UpdateStatus(msg.Sender)
-			newOrderFound := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
+			newOrderFound, ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
+
+			pm.lastAckedVersion = ackedVersion
+			pm.ackNotifyCh <- struct{}{}
+
 			if newOrderFound{
 				pm.NewOrderCh <- struct{}{}			
 			}
@@ -82,23 +92,51 @@ func (pm *PeerManager) Run() error{
 	}
 }
 
-func (pm *PeerManager) GetMySnapshot() (controller.Elevator, error) {
+func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Duration) error{
+	sm := pm.snapshotManager
+	sm.UpdateMySnapshot(elevator)
+
+	snapshot, err := pm.GetMySnapshot()
+	if err != nil{
+		return err
+	}
+
+	targetVersion := snapshot.Version
+	
+	deadline := time.After(timeout)
+	for{
+		select{
+		case <-pm.ackNotifyCh:
+			pm.ackMutex.Lock()
+			ackedVersion := pm.lastAckedVersion
+			pm.ackMutex.Unlock()
+			if ackedVersion >= targetVersion{
+				return nil
+			}
+		case <-deadline:
+			err := fmt.Errorf("Ack timed out")
+			return err
+		}
+	}
+} 
+
+func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot, error) {
 	snapshot, err := pm.getSnapshot(pm.myID)
 	return snapshot, err
 
 }
 
-func (pm *PeerManager) getSnapshot(ID uint64) (controller.Elevator, error) {
+func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
 	sm := pm.snapshotManager
-	snapshots := sm.GetSnapshots()
+	snaps := sm.GetSnapshots()
 
-	snapshot, ok := snapshots[ID]
+	snapshot, ok := snaps[ID]
 	if !ok {
 		err := fmt.Errorf("Snapshot for ID: %d not found", ID)
-		return controller.Elevator{}, err
+		return snapshots.Snapshot{}, err
 	}
 	
-	return snapshot.Elevator, nil
+	return snapshot, nil
 }
 
 func getMyID() uint64{ //Get mac address
