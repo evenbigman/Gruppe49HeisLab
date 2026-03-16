@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	backuphandler.EnsurePrimary()
+	backuphandler.InitPrimaryBackup()
 
 	for {
 		fmt.Println("Running elevator stuff")
