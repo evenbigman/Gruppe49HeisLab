@@ -6,22 +6,42 @@ import (
 	"time"
 )
 
+// Public funcitons
+
 func EnsurePrimary() {
-	isBackupPtr := flag.Bool("backup", false, "run in backup mode")
-	primaryPidPtr := flag.Int("pid", 0, "pid of the primary to watch")
-	flag.Parse()
-	isBackup := *isBackupPtr
-	primaryPid := *primaryPidPtr
+	isBackup, primaryPID := parseRoleFlags()
 
 	if isBackup {
-		waitForPrimaryToDie(primaryPid)
-		fmt.Println("primary died, promoting to primary")
+		waitForPrimaryToDie(primaryPID)
 	}
 
-	go watchBackupAndRespawn()
+	fmt.Printf("taking over as primary...")
+
+	go keepBackupRunning()
 }
 
-func watchBackupAndRespawn() {
+// Private funcitons
+
+func parseRoleFlags() (bool, int) {
+	backupModeFlag := flag.Bool("backup", false, "run in backup mode")
+	primaryPIDFlag := flag.Int("pid", 0, "pid of the primary to watch")
+	flag.Parse()
+
+	return *backupModeFlag, *primaryPIDFlag
+}
+
+func waitForPrimaryToDie(primaryPID int) {
+	ticker := time.NewTicker(time.Millisecond * 500)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if !isProcessAlive(primaryPID) {
+			return
+		}
+	}
+}
+
+func keepBackupRunning() {
 	for {
 		cmd, err := createBackup()
 		if err != nil {
@@ -29,18 +49,12 @@ func watchBackupAndRespawn() {
 			time.Sleep(time.Second)
 			continue
 		}
-		cmd.Wait()
-		fmt.Println("backup died, respawning...")
-	}
-}
 
-func waitForPrimaryToDie(pid int) {
-	ticker := time.NewTicker(time.Millisecond * 500)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if !isProcessAlive(pid) {
-			return
+		err = cmd.Wait()
+		if err != nil {
+			fmt.Printf("backup exited with error: %v\n", err)
 		}
+
+		fmt.Println("backup died, respawning...")
 	}
 }
