@@ -123,6 +123,19 @@ func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Dur
 func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot, error) {
 	snapshot, err := pm.getSnapshot(pm.myID)
 	return snapshot, err
+}
+
+func (pm *PeerManager) GetConnectedSnapshots() []snapshots.Snapshot {
+	statuses := pm.statusManager.GetStatus()
+	snaps := pm.snapshotManager.GetSnapshots()
+
+	output := make([]snapshots.Snapshot, 0, len(statuses))
+	for id, status := range statuses{
+		if status.Connected{
+			output = append(output, snaps[id])
+		}
+	}
+	return output
 
 }
 
