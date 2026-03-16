@@ -16,11 +16,11 @@ type Snapshot struct{
 }
 type SnapshotManager struct{
 	mutex sync.RWMutex
-	snapshots map[string]Snapshot
-	myID string
+	snapshots map[uint64]Snapshot
+	myID uint64
 }
 
-func NewSnapshotManager(myID string) *SnapshotManager{
+func NewSnapshotManager(myID uint64) *SnapshotManager{
 	sm := &SnapshotManager{
 		myID: myID,
 	}	
@@ -29,7 +29,7 @@ func NewSnapshotManager(myID string) *SnapshotManager{
 }
 
 //Takes incoming state, updates if necessary. Also checks if new order has come :O
-func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[string]Snapshot) bool{
+func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) bool{
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -61,11 +61,11 @@ func (sm *SnapshotManager) UpdateLocalSnapshot(localElevator controller.Elevator
 	}
 }
 
-func (sm *SnapshotManager) GetSnapshots() map[string]Snapshot{
+func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot{
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	
-	output := make(map[string]Snapshot, len(sm.snapshots))
+	output := make(map[uint64]Snapshot, len(sm.snapshots))
 	for id, storedSnapshot := range sm.snapshots {
 		output[id] = storedSnapshot 
 	}
@@ -73,7 +73,7 @@ func (sm *SnapshotManager) GetSnapshots() map[string]Snapshot{
 }
 
 //Not very good, really goes into controller module
-func (sm *SnapshotManager) checkIfNewOrder(ID string, newSnapshot Snapshot) bool{
+func (sm *SnapshotManager) checkIfNewOrder(ID uint64, newSnapshot Snapshot) bool{
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
