@@ -94,8 +94,8 @@ func (pm *PeerManager) Run() error{
 }
 
 func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Duration) error{
-	sm := pm.snapshotManager
-	sm.UpdateMySnapshot(elevator)
+	//TODO: Make semaphor to limit how many of this function can run at a time
+	pm.SetMySnapshot(elevator)
 
 	snapshot, err := pm.GetMySnapshot()
 	if err != nil{
@@ -127,7 +127,7 @@ func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot, error) {
 }
 
 func (pm *PeerManager) GetConnectedSnapshots() []snapshots.Snapshot {
-	statuses := pm.statusManager.GetStatus()
+	statuses := pm.statusManager.GetStatuses()
 	snaps := pm.snapshotManager.GetSnapshots()
 
 	output := make([]snapshots.Snapshot, 0, len(statuses))

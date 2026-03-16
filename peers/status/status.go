@@ -1,7 +1,6 @@
 package status
 //TODO: Add proper error handling
 //TODO: Add logging
-//TODO: Add subscriber model to get status changes of peers on a channel
 //TODO: Make singelton
 
 import(
@@ -54,7 +53,7 @@ func (sm *StatusManager) UpdateStatus(peerID uint64){
 	}
 }
 
-func (sm *StatusManager) GetStatus() map[uint64]status{
+func (sm *StatusManager) GetStatuses() map[uint64]status{
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	
