@@ -3,14 +3,8 @@ package backuphandler
 import (
 	"flag"
 	"fmt"
-	"os"
-	"os/exec"
-	"strconv"
-	"syscall"
 	"time"
 )
-
-// TODO: make linux compatible
 
 func EnsurePrimary() {
 	isBackupPtr := flag.Bool("backup", false, "run in backup mode")
@@ -40,25 +34,6 @@ func watchBackupAndRespawn() {
 	}
 }
 
-func createBackup() (*exec.Cmd, error) {
-	myPid := os.Getpid()
-
-	executablePath, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-
-	const createNewConsole = 0x00000010
-	cmd := exec.Command(executablePath, "-backup=true", "-pid="+strconv.Itoa(myPid))
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: createNewConsole,
-	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Start()
-	return cmd, err
-}
-
 func waitForPrimaryToDie(pid int) {
 	ticker := time.NewTicker(time.Millisecond * 500)
 	defer ticker.Stop()
@@ -68,20 +43,4 @@ func waitForPrimaryToDie(pid int) {
 			return
 		}
 	}
-}
-
-func isProcessAlive(pid int) bool {
-	handle, err := syscall.OpenProcess(syscall.SYNCHRONIZE|syscall.PROCESS_QUERY_INFORMATION, false, uint32(pid))
-	if err != nil {
-		return false
-	}
-	defer syscall.CloseHandle(handle)
-
-	var exitCode uint32
-	err = syscall.GetExitCodeProcess(handle, &exitCode)
-	if err != nil {
-		return false
-	}
-	const stillActive = 259 // STILL_ACTIVE
-	return exitCode == stillActive
 }
