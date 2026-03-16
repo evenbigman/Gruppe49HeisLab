@@ -5,19 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"sanntidslab/config"
 	"sanntidslab/controller"
+	"sanntidslab/peers/snapshots"
 )
 
-type ElevatorSnapshot struct {
-	HallCalls [][2]bool
-	Elevators []controller.Elevator
+type ElevatorsSnapshot struct {
+	HallCalls [config.NumFloors][2]bool
+	Snapshot  []snapshots.Snapshot
 }
 
-type HallAssignments map[string][][2]bool
+type HallAssignments map[string][config.NumFloors][2]bool
 
 // Public functions
 
-func AssignHallRequests(snapshot ElevatorSnapshot) (HallAssignments, error) {
+func AssignHallRequests(snapshot ElevatorsSnapshot) (HallAssignments, error) {
 	snapshotJSON, err := snapshotToJSON(snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal elevator state: %w", err)
@@ -73,10 +75,11 @@ func directionToString(state controller.ElevatorState) (string, error) {
 	}
 }
 
-func snapshotToJSON(snapshot ElevatorSnapshot) ([]byte, error) {
-	states := make(map[string]any, len(snapshot.Elevators))
+func snapshotToJSON(snapshot ElevatorsSnapshot) ([]byte, error) {
+	states := make(map[string]any, len(snapshot.Snapshot))
 
-	for id, elevator := range snapshot.Elevators {
+	for i, snap := range snapshot.Snapshot {
+		elevator := snap.Elevator
 		status, err := statusToString(elevator.State)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert elevator status to string: %w", err)
@@ -87,7 +90,7 @@ func snapshotToJSON(snapshot ElevatorSnapshot) ([]byte, error) {
 			return nil, fmt.Errorf("failed to convert elevator direction to string: %w", err)
 		}
 
-		states[fmt.Sprintf("id_%d", id+1)] = map[string]any{
+		states[fmt.Sprintf("id_%d", i+1)] = map[string]any{
 			"behaviour":   status,
 			"floor":       elevator.CurrentFloor,
 			"direction":   direction,

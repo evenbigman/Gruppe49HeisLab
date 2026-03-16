@@ -6,15 +6,12 @@ import (
 	"sanntidslab/controller"
 	hallrequestassigner "sanntidslab/hall_request_assigner"
 	"sanntidslab/peers"
+	"sanntidslab/peers/snapshots"
 	"time"
 )
 
 func main() {
 	backup.Init()
-
-	peerManager := peers.NewPeerManager()
-	peerManager.Init()
-	peerManager.Run()
 
 	pm := peers.NewPeerManager()
 
@@ -38,10 +35,6 @@ func main() {
 
 	for {
 		select {
-		case <-peerManager.NewOrderCh:
-			// assign orders from others
-		case <-peerManager.DisconnectedPeerCh:
-			// Redistribute orders
 		case <-buttonCh:
 			stateToAck := ec.GetElevatorState()
 			go func() {
@@ -50,6 +43,27 @@ func main() {
 				} else {
 					ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
 					// TODO: Add hallrequest assigner
+
+					// START OF HALL REQUEST ASSIGNER STUFF
+					mySnapshot, _ := pm.GetMySnapshot()
+					connectedSnapshots := pm.GetConnectedSnapshots()
+
+					allSnapshots := make([]snapshots.Snapshot, 0, 1+len(connectedSnapshots))
+					allSnapshots = append(allSnapshots, mySnapshot)            // first element
+					allSnapshots = append(allSnapshots, connectedSnapshots...) // rest
+
+					elevatorsSnapshot := hallrequestassigner.ElevatorsSnapshot{
+						HallCalls: stateToAck.ConfirmedHallOrders,
+						Snapshot:  allSnapshots,
+					}
+
+					hallAssignments, _ := hallrequestassigner.AssignHallRequests(elevatorsSnapshot)
+
+					myOrders := hallAssignments["id_1"]
+
+					ec.AssignHallOrders(myOrders)
+					// END OF HALL REQUEST ASSIGNER STUFF
+
 					ec.SetCabOrders(stateToAck.PressedCabButtons)
 				}
 			}()
