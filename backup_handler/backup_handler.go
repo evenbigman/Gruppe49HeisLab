@@ -8,7 +8,7 @@ import (
 
 // Public funcitons
 
-func InitPrimaryBackup() {
+func Init() {
 	waitUntilPrimary()
 	go keepBackupRunning()
 }
