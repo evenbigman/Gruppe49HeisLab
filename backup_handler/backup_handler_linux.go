@@ -28,6 +28,9 @@ func createBackup() (*exec.Cmd, error) {
 	}
 
 	cmd, err := buildLinuxTerminalCommand(executablePath, backupArgs)
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+
 	if err != nil {
 		return nil, err
 	}
