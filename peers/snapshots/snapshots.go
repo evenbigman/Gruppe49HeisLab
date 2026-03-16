@@ -24,6 +24,8 @@ type SnapshotManager struct{
 func NewSnapshotManager(myID uint64) *SnapshotManager{
 	sm := &SnapshotManager{
 		myID: myID,
+		snapshots: make(map[uint64]Snapshot),
+
 	}	
 
 	return sm
@@ -76,8 +78,6 @@ func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot{
 
 //Not very good, really goes into controller module
 func (sm *SnapshotManager) checkIfNewOrder(ID uint64, newSnapshot Snapshot) bool{
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
 
 	newOrderFound := false
 
