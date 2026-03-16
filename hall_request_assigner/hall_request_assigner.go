@@ -15,6 +15,38 @@ type ElevatorSnapshot struct {
 
 type HallAssignments map[string][][2]bool
 
+// Public functions
+
+func AssignHallRequests(snapshot ElevatorSnapshot) (HallAssignments, error) {
+	snapshotJSON, err := snapshotToJSON(snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal elevator state: %w", err)
+	}
+
+	cmd := exec.Command("./hall_request_assigner", "--input", string(snapshotJSON))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("hall request assignment command failed: %w (stderr: %s)", err, stderr.String())
+	}
+
+	assignmentsJSON := bytes.TrimSpace(stdout.Bytes())
+
+	assignments, err := parseHallAssignments(assignmentsJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal elevator assignments: %w", err)
+	}
+
+	return assignments, nil
+}
+
+// Private functions
+
 func statusToString(status controller.ElevatorState) (string, error) {
 	switch status {
 	case controller.Idle:
@@ -77,34 +109,6 @@ func parseHallAssignments(assignmentsJSON []byte) (HallAssignments, error) {
 	err := json.Unmarshal(assignmentsJSON, &assignments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse hall assignments: %w", err)
-	}
-
-	return assignments, nil
-}
-
-func AssignHallRequests(snapshot ElevatorSnapshot) (HallAssignments, error) {
-	snapshotJSON, err := snapshotToJSON(snapshot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal elevator state: %w", err)
-	}
-
-	cmd := exec.Command("./hall_request_assigner", "--input", string(snapshotJSON))
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
-	if err != nil {
-		return nil, fmt.Errorf("hall request assignment command failed: %w (stderr: %s)", err, stderr.String())
-	}
-
-	assignmentsJSON := bytes.TrimSpace(stdout.Bytes())
-
-	assignments, err := parseHallAssignments(assignmentsJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal elevator assignments: %w", err)
 	}
 
 	return assignments, nil
