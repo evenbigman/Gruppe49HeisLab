@@ -4,7 +4,7 @@ package snapshots
 //TODO: Add subscriber model to get snapshot changes of peers on a channel
 //TODO: MAke singellton
 //TODO: Prevent integer overflow on version number
-//TODO: Refactor MergeSnapshots
+//TODO: Refactor MergeSnapshots, fix abstraction layer together with peers
 
 import(
 	"sanntidslab/controller"
@@ -61,6 +61,16 @@ func (sm *SnapshotManager) UpdateMySnapshot(localElevator controller.Elevator) {
 	sm.snapshots[sm.myID] = Snapshot{
 		Version: previousSnapshot.Version + 1,
 		Elevator: localElevator,
+	}
+}
+
+func (sm *SnapshotManager) SetSnapshot(ID uint64, version int, elevator controller.Elevator) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.snapshots[ID] = Snapshot{
+		Version: version,
+		Elevator: elevator,
 	}
 }
 

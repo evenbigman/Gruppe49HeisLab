@@ -3,6 +3,7 @@ package peers
 //TODO: Handle disconnecting and reconnecting
 //TODO: Make singelton
 //TODO: Add ACKING
+//TODO: Make id type
 
 import(
 	"sanntidslab/peers/status"
@@ -136,7 +137,20 @@ func (pm *PeerManager) GetConnectedSnapshots() []snapshots.Snapshot {
 		}
 	}
 	return output
+}
 
+func (pm *PeerManager) SetMySnapshot(elevator controller.Elevator) error{
+	mySnapshot, err := pm.getSnapshot(pm.myID)
+	if err != nil{
+		return err
+	}
+
+	oldVersion := mySnapshot.Version
+
+	sm := pm.snapshotManager
+	sm.SetSnapshot(pm.myID, oldVersion + 1, elevator) 
+
+	return nil
 }
 
 func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
