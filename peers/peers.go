@@ -82,11 +82,14 @@ func (pm *PeerManager) Run() error{
 	}
 }
 
-func (pm *PeerManager) GetMySnapshot() controller.Elevator {
+func (pm *PeerManager) GetMySnapshot() (controller.Elevator, error) {
 	sm := pm.snapshotManager
-	snapshot := sm.GetSnapshot(pm.myID)
+	snapshot, err := sm.GetSnapshot(pm.myID)
+	if err != nil{
+		return controller.Elevator{}, err
+	}
 	
-	return snapshot.Elevator
+	return snapshot.Elevator, nil
 }
 
 func getMyID() uint64{ //Get mac address

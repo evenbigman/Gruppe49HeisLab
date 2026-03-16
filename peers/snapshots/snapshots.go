@@ -8,6 +8,7 @@ package snapshots
 import(
 	"sanntidslab/controller"
 	"sync"
+	"fmt"
 )
 
 type Snapshot struct{
@@ -61,14 +62,18 @@ func (sm *SnapshotManager) UpdateMySnapshot(localElevator controller.Elevator) {
 	}
 }
 
-func (sm *SnapshotManager) GetSnapshot(ID uint64) Snapshot{
+func (sm *SnapshotManager) GetSnapshot(ID uint64) (Snapshot, error){
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
 	snapshots := sm.GetSnapshots()
-	output := snapshots[ID]
+	output, ok := snapshots[ID]
+	if !ok{
+		err := fmt.Errorf("Snapshot for id: %d not found", ID)
+		return Snapshot{}, err
+	}
 
-	return output
+	return output, nil
 }
 
 func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot{
