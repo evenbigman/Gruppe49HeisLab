@@ -1,29 +1,27 @@
 package main
 
 import (
-//	backup "sanntidslab/backup_handler"
+	//	backup "sanntidslab/backup_handler"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	hallrequestassigner "sanntidslab/hall_request_assigner"
 	"sanntidslab/peers"
 	"sanntidslab/peers/snapshots"
-	"time"
 )
 
 func main() {
-//	backup.Init()
+	//	backup.Init()
 
 	pm := peers.NewPeerManager()
 
 	pm.Init()
 	go pm.Run()
 
-	time.Sleep(config.InitDelay)
 	ec := controller.GetController()
-	startSnapshot, err := pm.GetMySnapshot()
+	startState, err := pm.WaitForStartSnapshot()
 
 	if err == nil {
-		ec.InitElevatorWithStates(startSnapshot.Elevator)
+		ec.InitElevatorWithStates(startState)
 	} else {
 		ec.InitElevator()
 	}
