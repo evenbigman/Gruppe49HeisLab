@@ -28,7 +28,7 @@ type PeerManager struct{
 	statusManager *status.StatusManager
 	initialized bool
 	lastAckedVersion int
-	ackMutex sync.Mutex
+	ackMutex sync.RWMutex
 	ackNotifyCh chan struct{}
 	hallOrderMutex sync.RWMutex
 	hallOrders [config.NumFloors][2]bool
@@ -121,9 +121,9 @@ func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Dur
 	for{
 		select{
 		case <-pm.ackNotifyCh:
-			pm.ackMutex.Lock()
+			pm.ackMutex.RLock()
 			ackedVersion := pm.lastAckedVersion
-			pm.ackMutex.Unlock()
+			pm.ackMutex.RUnlock()
 			if ackedVersion >= targetVersion{
 				return nil
 			}

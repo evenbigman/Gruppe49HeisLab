@@ -41,6 +41,7 @@ func main() {
 	for {
 		select {
 		case <-pm.OrderChangeCh:
+			log.Println("Got order")
 			orders := pm.GetOrders()
 			ec.SetGlobalHallOrders(orders)
 		case <-pm.DisconnectedPeerCh:
