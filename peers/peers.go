@@ -20,7 +20,7 @@ import(
 )
 
 type PeerManager struct{
-	NewOrderCh chan struct{}
+	OrderChangeCh chan struct{}
 	DisconnectedPeerCh chan struct{}
 	myID uint64
 	broadcastTx chan broadcast.Msg
@@ -31,12 +31,14 @@ type PeerManager struct{
 	lastAckedVersion int
 	ackMutex sync.Mutex
 	ackNotifyCh chan struct{}
+	hallOrderMutex sync.RWMutex
+	hallOrders [config.NumFloors][2]bool
 } 
 
 func NewPeerManager() *PeerManager{
 	myID := getMyID()
 	pm := &PeerManager{
-		NewOrderCh: make(chan struct{}), 
+		OrderChangeCh: make(chan struct{}), 
 		DisconnectedPeerCh: make(chan struct{}),
 		myID: myID,
 		broadcastTx: make(chan broadcast.Msg),
@@ -75,7 +77,7 @@ func (pm *PeerManager) Run() error{
 		case msg := <-pm.broadcastRx:
 			if msg.Sender != pm.myID{
 				pm.statusManager.UpdateStatus(msg.Sender)
-				newOrderFound, ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
+				newOrderFound, ackedVersion, orders := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
 				pm.lastAckedVersion = ackedVersion
 
@@ -89,8 +91,9 @@ func (pm *PeerManager) Run() error{
 
 
 				if newOrderFound{
+					pm.hallOrders = orders
   				select {
-  					case pm.NewOrderCh <- struct{}{}:
+  					case pm.OrderChangeCh <- struct{}{}:
   					default:
   				}
 				}
@@ -165,6 +168,13 @@ func (pm *PeerManager) SetMySnapshot(elevator controller.Elevator) error{
 	sm.SetSnapshot(pm.myID, oldVersion + 1, elevator) 
 
 	return nil
+}
+
+func (pm *PeerManager) getOrders() [config.NumFloors][2]bool{
+	pm.hallOrderMutex.RLock()	
+	defer pm.hallOrderMutex.RUnlock()	
+
+	return pm.hallOrders
 }
 
 func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {

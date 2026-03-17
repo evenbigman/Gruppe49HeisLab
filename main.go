@@ -6,7 +6,6 @@ import (
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	"sanntidslab/peers"
-	"sanntidslab/snapshots"
 	"time"
 )
 
@@ -41,7 +40,7 @@ func main() {
 
 	for {
 		select {
-		case <-pm.NewOrderCh:
+		case <-pm.OrderChangeCh:
 		case <-pm.DisconnectedPeerCh:
 		case <-buttonCh:
 			stateToAck := ec.GetElevatorState()

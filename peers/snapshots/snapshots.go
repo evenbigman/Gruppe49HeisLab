@@ -8,6 +8,7 @@ package snapshots
 
 import(
 	"sanntidslab/controller"
+	"sanntidslab/config"
 	"sync"
 )
 
@@ -32,12 +33,12 @@ func NewSnapshotManager(myID uint64) *SnapshotManager{
 }
 
 //Takes incoming state, updates if necessary. Also checks if new order has come :O And returnsed lowest version they have of our state
-func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (bool, int){
+func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (newOrderFound bool, ackedVersion int, orders [config.NumFloors][2]bool){
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	newOrderFound := false
-	ackedVersion := 0
+	newOrderFound = false
+	ackedVersion = 0
 	
 	for rcvdID, rcvdSnapshot := range incomingSnapshots{
 		if rcvdID == sm.myID{
@@ -53,11 +54,11 @@ func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot)
 		storedSnapshot, elevatorIsStored := sm.snapshots[rcvdID]
 		if !elevatorIsStored ||
 		rcvdSnapshot.Version > storedSnapshot.Version {
-			newOrderFound = sm.checkIfNewOrder(rcvdID, rcvdSnapshot)
+			newOrderFound, orders = sm.checkForOrderChanges(rcvdID, rcvdSnapshot)
 			sm.snapshots[rcvdID] = rcvdSnapshot
 		}
 	}
-	return newOrderFound, ackedVersion
+	return newOrderFound, ackedVersion, orders
 }
 
 func (sm *SnapshotManager) SetSnapshot(ID uint64, version int, elevator controller.Elevator) {
@@ -82,9 +83,9 @@ func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot{
 }
 
 //Not very good, really goes into controller module
-func (sm *SnapshotManager) checkIfNewOrder(ID uint64, newSnapshot Snapshot) bool{
+func (sm *SnapshotManager) checkForOrderChanges(ID uint64, newSnapshot Snapshot) (changeFound bool, orders [config.NumFloors][2]bool){
 
-	newOrderFound := false
+	changeFound = false
 
 	oldSnapshot, elevatorIsStored := sm.snapshots[ID]		
 	
@@ -94,11 +95,12 @@ func (sm *SnapshotManager) checkIfNewOrder(ID uint64, newSnapshot Snapshot) bool
 			//If order is already stored, does the new state contain a new order?
 			if elevatorIsStored{
 				oldOrderExists := oldSnapshot.Elevator.PressedHallButtons[i][j]
-				if !oldOrderExists && orderExists{
-					newOrderFound = true
+				if oldOrderExists != orderExists{
+					orders[i][j] = orderExists
+					changeFound = true
 				}
 			}
 		}
 	}
-	return newOrderFound
+	return changeFound, orders
 }
