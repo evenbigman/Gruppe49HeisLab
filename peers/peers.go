@@ -170,7 +170,7 @@ func (pm *PeerManager) SetMySnapshot(elevator controller.Elevator) error{
 	return nil
 }
 
-func (pm *PeerManager) getOrders() [config.NumFloors][2]bool{
+func (pm *PeerManager) GetOrders() [config.NumFloors][2]bool{
 	pm.hallOrderMutex.RLock()	
 	defer pm.hallOrderMutex.RUnlock()	
 
