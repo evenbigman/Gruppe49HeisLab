@@ -76,7 +76,7 @@ func (pm *PeerManager) Run() error{
 		case msg := <-pm.broadcastRx:
 			if msg.Sender != pm.myID{
 				pm.statusManager.UpdateStatus(msg.Sender)
-				newOrderFound, ackedVersion, orders := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
+				ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
 				pm.lastAckedVersion = ackedVersion
 
@@ -85,9 +85,10 @@ func (pm *PeerManager) Run() error{
 				  default:
 				}
 
-
-				if newOrderFound{
-					pm.hallOrders = orders
+				oldHallOrders := pm.hallOrders
+				newHallOrders := pm.snapshotManager.ComputeHallOrders()
+				if oldHallOrders != newHallOrders{
+					pm.hallOrders = newHallOrders
   				select {
   					case pm.OrderChangeCh <- struct{}{}:
   					default:

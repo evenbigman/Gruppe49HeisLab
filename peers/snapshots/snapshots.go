@@ -34,11 +34,10 @@ func NewSnapshotManager(myID uint64) *SnapshotManager{
 }
 
 //Takes incoming state, updates if necessary. Also checks if new order has come :O And returnsed lowest version they have of our state
-func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (newOrderFound bool, ackedVersion int, orders [config.NumFloors][2]bool){
+func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (ackedVersion int){
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	newOrderFound = false
 	ackedVersion = 0
 	
 	for rcvdID, rcvdSnapshot := range incomingSnapshots{
@@ -55,11 +54,10 @@ func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot)
 		storedSnapshot, elevatorIsStored := sm.snapshots[rcvdID]
 		if !elevatorIsStored ||
 		rcvdSnapshot.Version > storedSnapshot.Version {
-			newOrderFound, orders = sm.checkForOrderChanges(rcvdID, rcvdSnapshot)
 			sm.snapshots[rcvdID] = rcvdSnapshot
 		}
 	}
-	return newOrderFound, ackedVersion, orders
+	return ackedVersion
 }
 
 func (sm *SnapshotManager) SetSnapshot(ID uint64, version int, elevator controller.Elevator) {
@@ -83,25 +81,20 @@ func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot{
 	return output
 }
 
-//Not very good, really goes into controller module
-func (sm *SnapshotManager) checkForOrderChanges(ID uint64, newSnapshot Snapshot) (changeFound bool, orders [config.NumFloors][2]bool){
+func (sm *SnapshotManager) ComputeHallOrders() [config.NumFloors][2]bool {
+      sm.mutex.RLock()                                                                                                                                        
+      defer sm.mutex.RUnlock()
 
-	changeFound = false
+      var orders [config.NumFloors][2]bool                                                                                                                    
 
-	oldSnapshot, elevatorIsStored := sm.snapshots[ID]		
-	
-	//Check for every hall order (up and down)
-	for i, floor := range newSnapshot.Elevator.PressedHallButtons{
-		for j, orderExists := range floor{
-			//If order is already stored, does the new state contain a new order?
-			if elevatorIsStored{
-				oldOrderExists := oldSnapshot.Elevator.PressedHallButtons[i][j]
-				if oldOrderExists != orderExists{
-					orders[i][j] = orderExists
-					changeFound = true
-				}
-			}
-		}
-	}
-	return changeFound, orders
-}
+      for _, snapshot := range sm.snapshots {
+          for i, floor := range snapshot.Elevator.ConfirmedHallOrders {                                                                                            
+              for j, order := range floor {                                                                                                                   
+                  if order {                                                                                                                                  
+                      orders[i][j] = true                                                                                                                     
+                  }                                                                                                                                           
+              }   
+          }
+      }
+      return orders
+  }
