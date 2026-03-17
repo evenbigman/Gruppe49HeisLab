@@ -41,8 +41,13 @@ func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot)
 	
 	for rcvdID, rcvdSnapshot := range incomingSnapshots{
 		if rcvdID == sm.myID{
-			ackedVersion = rcvdSnapshot.Version
-			continue
+			_, mySnapshotExists := sm.snapshots[sm.myID]
+			if mySnapshotExists{
+				ackedVersion = rcvdSnapshot.Version
+				continue
+			} else{
+				sm.snapshots[sm.myID] = rcvdSnapshot
+			}
 		}
 		
 		storedSnapshot, elevatorIsStored := sm.snapshots[rcvdID]
