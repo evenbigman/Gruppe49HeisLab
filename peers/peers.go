@@ -78,15 +78,19 @@ func (pm *PeerManager) Run() error{
 				pm.statusManager.UpdateStatus(msg.Sender)
 				ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
-				pm.lastAckedVersion = ackedVersion
-
-				select {
-				  case pm.ackNotifyCh <- struct{}{}:
-				  default:
+				pm.ackMutex.Lock()
+				if pm.lastAckedVersion != ackedVersion{
+					pm.lastAckedVersion = ackedVersion
+					select {
+					  case pm.ackNotifyCh <- struct{}{}:
+					  default:
+					}
 				}
+				pm.ackMutex.Unlock()
 
+				pm.hallOrderMutex.Lock()
 				oldHallOrders := pm.hallOrders
-				newHallOrders := pm.snapshotManager.ComputeHallOrders()
+				newHallOrders := pm.snapshotManager.ComputeHallOrders(msg.Snapshots)
 				if oldHallOrders != newHallOrders{
 					pm.hallOrders = newHallOrders
   				select {
@@ -94,6 +98,8 @@ func (pm *PeerManager) Run() error{
   					default:
   				}
 				}
+				pm.hallOrderMutex.Unlock()
+
 			}
 			
 		case <-ticker.C:
