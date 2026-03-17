@@ -40,8 +40,8 @@ func main() {
 	log.Println("Started elevator controller")
 
 	for {
-		snapshot, _ := pm.GetMySnapshot()
-		log.Println("My snappshot:", snapshot.Elevator.ConfirmedHallOrders)
+		//snapshot, _ := pm.GetMySnapshot()
+		//log.Println("My snappshot:", snapshot.Elevator.ConfirmedHallOrders)
 		select {
 		case <-pm.OrderChangeCh:
 			orders := pm.GetOrders()

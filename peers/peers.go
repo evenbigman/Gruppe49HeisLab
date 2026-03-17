@@ -1,58 +1,58 @@
 package peers
+
 //TODO: Add logging
 //TODO: Handle disconnecting and reconnecting
 //TODO: Make singelton
 //TODO: Add ACKING
 //TODO: Make id type
 
-import(
-	"sanntidslab/peers/status"
-	"sanntidslab/peers/snapshots"
-	"sanntidslab/peers/broadcast"
-	"sanntidslab/config"
-	"sanntidslab/controller"
-	"sync"
+import (
+	"fmt"
 	"log"
 	"net"
+	"sanntidslab/config"
+	"sanntidslab/controller"
+	"sanntidslab/peers/broadcast"
+	"sanntidslab/peers/snapshots"
+	"sanntidslab/peers/status"
+	"sync"
 	"time"
-	"fmt"
 )
 
-type PeerManager struct{
-	OrderChangeCh chan struct{}
+type PeerManager struct {
+	OrderChangeCh      chan struct{}
 	DisconnectedPeerCh chan struct{}
-	myID uint64
-	broadcastTx chan broadcast.Msg
-	broadcastRx chan broadcast.Msg
-	snapshotManager *snapshots.SnapshotManager
-	statusManager *status.StatusManager
-	initialized bool
-	lastAckedVersion int
-	ackMutex sync.RWMutex
-	ackNotifyCh chan struct{}
-	hallOrderMutex sync.RWMutex
-	hallOrders [config.NumFloors][2]bool
-} 
+	myID               uint64
+	broadcastTx        chan broadcast.Msg
+	broadcastRx        chan broadcast.Msg
+	snapshotManager    *snapshots.SnapshotManager
+	statusManager      *status.StatusManager
+	initialized        bool
+	lastAckedVersion   int
+	ackMutex           sync.RWMutex
+	ackNotifyCh        chan struct{}
+	hallOrderMutex     sync.RWMutex
+	hallOrders         [config.NumFloors][2]bool
+}
 
-func NewPeerManager() *PeerManager{
+func NewPeerManager() *PeerManager {
 	myID := getMyID()
 	pm := &PeerManager{
-		OrderChangeCh: make(chan struct{}), 
+		OrderChangeCh:      make(chan struct{}),
 		DisconnectedPeerCh: make(chan struct{}),
-		myID: myID,
-		broadcastTx: make(chan broadcast.Msg),
-		broadcastRx: make(chan broadcast.Msg),
-		snapshotManager: snapshots.NewSnapshotManager(myID),
-		statusManager: status.NewStatusManager(config.BcastInterval, config.TimeoutInterval),
-		initialized: false,
-		lastAckedVersion: 0,
-		ackNotifyCh: make(chan struct{}, 1),
+		myID:               myID,
+		broadcastTx:        make(chan broadcast.Msg),
+		broadcastRx:        make(chan broadcast.Msg),
+		snapshotManager:    snapshots.NewSnapshotManager(myID),
+		statusManager:      status.NewStatusManager(config.BcastInterval, config.TimeoutInterval),
+		initialized:        false,
+		lastAckedVersion:   0,
+		ackNotifyCh:        make(chan struct{}, 1),
 	}
 	return pm
 }
 
-
-func (pm *PeerManager) Init(){
+func (pm *PeerManager) Init() {
 	pm.DisconnectedPeerCh = pm.statusManager.DisconnectedPeerCh
 
 	go broadcast.Transmitter(config.BcastPort, pm.broadcastTx)
@@ -61,7 +61,7 @@ func (pm *PeerManager) Init(){
 	pm.initialized = true
 }
 
-func (pm *PeerManager) Run() error{
+func (pm *PeerManager) Run() error {
 	if !pm.initialized {
 		log.Printf("ID: %d", getMyID())
 		return fmt.Errorf("Init() must be called before Run()")
@@ -70,21 +70,22 @@ func (pm *PeerManager) Run() error{
 	defer ticker.Stop()
 
 	go pm.statusManager.Run()
+	elevatorController := controller.GetController()
 
-	for{
-		select{
+	for {
+		select {
 		case msg := <-pm.broadcastRx:
-			if msg.Sender != pm.myID{
+			if msg.Sender != pm.myID {
 				pm.statusManager.UpdateStatus(msg.Sender)
 				ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
 				pm.ackMutex.Lock()
-				if pm.lastAckedVersion < ackedVersion{
+				if pm.lastAckedVersion < ackedVersion {
 					pm.lastAckedVersion = ackedVersion
 					pm.ackMutex.Unlock()
 					select {
-						case <-pm.ackNotifyCh:
-					  default:
+					case <-pm.ackNotifyCh:
+					default:
 					}
 					pm.ackNotifyCh <- struct{}{}
 				} else {
@@ -95,20 +96,22 @@ func (pm *PeerManager) Run() error{
 
 				oldHallOrders := pm.hallOrders
 				newHallOrders := pm.snapshotManager.ComputeHallOrders()
-				if oldHallOrders != newHallOrders{
+				if oldHallOrders != newHallOrders {
 					pm.hallOrders = newHallOrders
 					pm.hallOrderMutex.Unlock()
-  				pm.OrderChangeCh <- struct{}{}
+					pm.OrderChangeCh <- struct{}{}
 				} else {
 					pm.hallOrderMutex.Unlock()
 				}
 
 			}
-			
+
 		case <-ticker.C:
+			elevator := elevatorController.GetElevatorState()
+			pm.SetMySnapshot(elevator)
 			snapshots := pm.snapshotManager.GetSnapshots()
 			msg := broadcast.Msg{
-				Sender: pm.myID,
+				Sender:    pm.myID,
 				Snapshots: snapshots,
 			}
 			pm.broadcastTx <- msg
@@ -116,25 +119,25 @@ func (pm *PeerManager) Run() error{
 	}
 }
 
-func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Duration) error{
+func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Duration) error {
 	//TODO: Make semaphor to limit how many of this function can run at a time
 	pm.SetMySnapshot(elevator)
 
 	snapshot, err := pm.GetMySnapshot()
-	if err != nil{
+	if err != nil {
 		return err
 	}
 
 	targetVersion := snapshot.Version
-	
+
 	deadline := time.After(timeout)
-	for{
-		select{
+	for {
+		select {
 		case <-pm.ackNotifyCh:
 			pm.ackMutex.RLock()
 			ackedVersion := pm.lastAckedVersion
 			pm.ackMutex.RUnlock()
-			if ackedVersion >= targetVersion{
+			if ackedVersion >= targetVersion {
 				return nil
 			}
 		case <-deadline:
@@ -142,7 +145,7 @@ func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Dur
 			return err
 		}
 	}
-} 
+}
 
 func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot, error) {
 	snapshot, err := pm.getSnapshot(pm.myID)
@@ -154,31 +157,31 @@ func (pm *PeerManager) GetConnectedSnapshots() []snapshots.Snapshot {
 	snaps := pm.snapshotManager.GetSnapshots()
 
 	output := make([]snapshots.Snapshot, 0, len(statuses))
-	for id, status := range statuses{
-		if status.Connected{
+	for id, status := range statuses {
+		if status.Connected {
 			output = append(output, snaps[id])
 		}
 	}
 	return output
 }
 
-func (pm *PeerManager) SetMySnapshot(elevator controller.Elevator) error{
+func (pm *PeerManager) SetMySnapshot(elevator controller.Elevator) error {
 	oldVersion := 0
 
 	mySnapshot, err := pm.getSnapshot(pm.myID)
-	if err == nil{
+	if err == nil {
 		oldVersion = mySnapshot.Version
 	}
 
 	sm := pm.snapshotManager
-	sm.SetSnapshot(pm.myID, oldVersion + 1, elevator) 
+	sm.SetSnapshot(pm.myID, oldVersion+1, elevator)
 
 	return nil
 }
 
-func (pm *PeerManager) GetOrders() [config.NumFloors][2]bool{
-	pm.hallOrderMutex.RLock()	
-	defer pm.hallOrderMutex.RUnlock()	
+func (pm *PeerManager) GetOrders() [config.NumFloors][2]bool {
+	pm.hallOrderMutex.RLock()
+	defer pm.hallOrderMutex.RUnlock()
 
 	return pm.hallOrders
 }
@@ -192,17 +195,17 @@ func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
 		err := fmt.Errorf("Snapshot for ID: %d not found", ID)
 		return snapshots.Snapshot{}, err
 	}
-	
+
 	return snapshot, nil
 }
 
-func getMyID() uint64{ //Get mac address
+func getMyID() uint64 { //Get mac address
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
 	}
-	for _, i := range interfaces{ //Fore each interface
-		if i.Flags&net.FlagUp != 0 && len(i.HardwareAddr) != 0	{
+	for _, i := range interfaces { //Fore each interface
+		if i.Flags&net.FlagUp != 0 && len(i.HardwareAddr) != 0 {
 			var result uint64
 			for _, b := range i.HardwareAddr {
 				result = (result << 8) | uint64(b)
