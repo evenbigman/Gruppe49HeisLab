@@ -41,6 +41,8 @@ func main() {
 	for {
 		select {
 		case <-pm.OrderChangeCh:
+			orders := pm.GetOrders()
+			ec.SetGlobalHallOrders(orders)
 		case <-pm.DisconnectedPeerCh:
 		case <-buttonCh:
 			stateToAck := ec.GetElevatorState()
