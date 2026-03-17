@@ -77,10 +77,18 @@ func (pm *PeerManager) Run() error{
 				newOrderFound, ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
 				pm.lastAckedVersion = ackedVersion
-				pm.ackNotifyCh <- struct{}{}
+
+				select {
+				  case pm.ackNotifyCh <- struct{}{}:
+				  default:
+				}
+
 
 				if newOrderFound{
-					pm.NewOrderCh <- struct{}{}			
+  				select {
+  					case pm.NewOrderCh <- struct{}{}:
+  					default:
+  				}
 				}
 			}
 			
