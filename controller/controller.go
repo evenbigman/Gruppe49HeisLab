@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sanntidslab/config"
 	"sanntidslab/elevio"
+	"strings"
 	"sync"
 	"time"
 )
@@ -108,7 +109,6 @@ func (ec *ElevatorController) InitElevator(port ...string) {
 
 		ec.stateLock.Lock()
 		ec.elevator.CurrentFloor = elevio.GetFloor()
-		fmt.Println("Started in floor: ", ec.elevator.CurrentFloor)
 		ec.stateLock.Unlock()
 
 		state := ec.GetElevatorState()
@@ -330,9 +330,7 @@ func (ec *ElevatorController) completeWaitingOrders() {
 		case <-cabOrderCh:
 			ec.handleNewCabOrder()
 		case <-hallOrderCh:
-			fmt.Println("Handle new order")
 			ec.handleNewHallOrder()
-			fmt.Println("New state:", ec.GetElevatorState().State)
 		}
 	}
 }
@@ -833,4 +831,32 @@ func (es ElevatorState) String() string {
 		return fmt.Sprintf("%d", es)
 	}
 
+}
+
+func (hallOrder HallOrders) String() string {
+	var str strings.Builder
+	for floor, orders := range hallOrder {
+		fmt.Fprintf(&str, "Hall orders for floor %d are: %v \n", floor, orders)
+	}
+	return str.String()
+}
+
+func (cabOrders CabOrders) String() string {
+	var str strings.Builder
+	for floor, orders := range cabOrders {
+		fmt.Fprintf(&str, "Cab order for floor %d is: %v \n", floor, orders)
+	}
+	return str.String()
+}
+
+func (e Elevator) String() string {
+	str := fmt.Sprintf("Current floor: %d \n", e.CurrentFloor)
+	str += fmt.Sprintf("Assigned Orders: %s \n", e.AssignedHallOrders)
+	str += fmt.Sprintf("Confirmed hall orders: %s \n", e.ConfirmedHallOrders)
+	str += fmt.Sprintf("CabOrders: %s \n", e.CabOrders)
+	str += fmt.Sprintf("State: %s \n", e.State)
+	str += fmt.Sprintf("Pressed Hall buttons: %s \n", e.PressedHallButtons)
+	str += fmt.Sprintf("Pressed Cab Buttons: %s \n", e.PressedCabButtons)
+
+	return str
 }
