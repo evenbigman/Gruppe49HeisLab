@@ -1,16 +1,17 @@
 package main
 
 import (
-//	backup "sanntidslab/backup_handler"
-	"sanntidslab/peers"
-	"sanntidslab/controller"
-	"sanntidslab/config"
+	//	backup "sanntidslab/backup_handler"
 	"log"
+	"sanntidslab/config"
+	"sanntidslab/controller"
+	"sanntidslab/peers"
+	"sanntidslab/snapshots"
 	"time"
 )
 
 func main() {
-//	backup.Init()
+	//	backup.Init()
 
 	pm := peers.NewPeerManager()
 
@@ -32,7 +33,7 @@ func main() {
 	myElevatorState := ec.GetElevatorState()
 	pm.SetMySnapshot(myElevatorState)
 
-	//buttonCh := ec.SubscribeButtons()
+	buttonCh := ec.SubscribeButtons()
 	//stateCh := ec.SubscribeState()
 
 	ec.Start()
@@ -42,6 +43,16 @@ func main() {
 		select {
 		case <-pm.NewOrderCh:
 		case <-pm.DisconnectedPeerCh:
+		case <-buttonCh:
+			stateToAck := ec.GetElevatorState()
+			go func() {
+				err := pm.WaitForAck(stateToAck, config.TimeoutAck)
+				if err != nil {
+				} else {
+					ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
+					ec.SetCabOrders(stateToAck.PressedCabButtons)
+				}
+			}()
 		}
 	}
 	//	case <-buttonCh:
