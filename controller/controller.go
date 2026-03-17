@@ -26,6 +26,9 @@ const (
 	down
 )
 
+type HallOrders [numFloors][2]bool
+type CabOrders [numFloors]bool
+
 type ElevatorState int
 
 const (
@@ -41,12 +44,12 @@ const (
 
 type Elevator struct {
 	CurrentFloor        int
-	AssignedHallOrders  [numFloors][2]bool
-	ConfirmedHallOrders [numFloors][2]bool
-	CabOrders           [numFloors]bool
+	AssignedHallOrders  HallOrders
+	ConfirmedHallOrders HallOrders
+	CabOrders           CabOrders
 	State               ElevatorState
-	PressedHallButtons  [numFloors][2]bool
-	PressedCabButtons   [numFloors]bool
+	PressedHallButtons  HallOrders
+	PressedCabButtons   CabOrders
 }
 
 type ElevatorController struct {
