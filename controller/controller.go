@@ -703,6 +703,7 @@ func (ec *ElevatorController) elevatorDriveDown() {
 func (ec *ElevatorController) handleLights() {
 	cabOrderCh := ec.SubscribeCabOrders()
 	hallOrderCh := ec.SubscribeHallOrders()
+	tickerUpdate := time.NewTicker(500 * time.Millisecond)
 
 	for {
 		select {
@@ -718,6 +719,16 @@ func (ec *ElevatorController) handleLights() {
 				elevio.SetButtonLamp(elevio.BT_HallUp, floor, orders[up])
 				elevio.SetButtonLamp(elevio.BT_HallDown, floor, orders[down])
 			}
+		case <-tickerUpdate.C:
+			state := ec.GetElevatorState()
+			for floor, orders := range state.ConfirmedHallOrders {
+				elevio.SetButtonLamp(elevio.BT_HallUp, floor, orders[up])
+				elevio.SetButtonLamp(elevio.BT_HallDown, floor, orders[down])
+			}
+			for floor, order := range state.CabOrders {
+				elevio.SetButtonLamp(elevio.BT_Cab, floor, order)
+			}
+
 		}
 	}
 
