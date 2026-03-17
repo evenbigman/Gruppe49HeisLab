@@ -3,7 +3,10 @@ package main
 import (
 //	backup "sanntidslab/backup_handler"
 	"sanntidslab/peers"
+	"sanntidslab/controller"
+	"sanntidslab/config"
 	"log"
+	"time"
 )
 
 func main() {
@@ -15,24 +18,26 @@ func main() {
 	go pm.Run()
 
 	log.Println("Started peermanager")
-//
-//	time.Sleep(config.InitDelay)
-//
-//	ec := controller.GetController()
-//	startSnapshot, err := pm.GetMySnapshot()
-//	if err == nil {
-//		ec.InitElevatorWithStates(startSnapshot.Elevator)
-//	} else {
-//		log.Println("Started fresh elevator")
-//		ec.InitElevator()
-//	}
-//
-//	buttonCh := ec.SubscribeButtons()
-//	stateCh := ec.SubscribeState()
-//
-//	ec.Start()
-//	log.Println("Started elevator controller")
-//
+
+	time.Sleep(config.InitDelay)
+
+	ec := controller.GetController()
+	startSnapshot, err := pm.GetMySnapshot()
+	if err == nil {
+		ec.InitElevatorWithStates(startSnapshot.Elevator)
+	} else {
+		log.Println("Started fresh elevator")
+		ec.InitElevator()
+	}
+	myElevatorState := ec.GetElevatorState()
+	pm.SetMySnapshot(myElevatorState)
+
+	//buttonCh := ec.SubscribeButtons()
+	//stateCh := ec.SubscribeState()
+
+	ec.Start()
+	log.Println("Started elevator controller")
+
 	for {
 		select {
 		case <-pm.NewOrderCh:
