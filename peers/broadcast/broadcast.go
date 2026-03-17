@@ -31,7 +31,7 @@ func Receiver(port int, rx chan Msg){
 	buffer := make([]byte, bufferSize)
 
 	for{
-		n, _, err := conn.ReadFrom(buffer)
+		n, addr, err := conn.ReadFrom(buffer)
 		if err != nil {
 			log.Printf("[Receiver] Reading error: %s", err)
 			continue
@@ -45,8 +45,10 @@ func Receiver(port int, rx chan Msg){
 			continue
 		}
 
-		log.Printf("[Receiver] Received %d bytes", n)
-		rx <- msg
+		if udpAddr, ok := addr.(*net.UDPAddr); ok{
+			log.Printf("[Receiver] Received %d bytes from %s at port %d", n, udpAddr.IP, udpAddr.Port)
+			rx <- msg
+		}
 	}
 }
 
