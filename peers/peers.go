@@ -11,6 +11,7 @@ import(
 	"sanntidslab/peers/broadcast"
 	"sanntidslab/config"
 	"sanntidslab/controller"
+	"encoding/json"
 	"sync"
 	"log"
 	"net"
@@ -77,6 +78,9 @@ func (pm *PeerManager) Run() error{
 				newOrderFound, ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
 				pm.lastAckedVersion = ackedVersion
+
+				b, _:= json.Marshal(pm.snapshotManager.GetSnapshots())
+				log.Println(string(b))
 
 				select {
 				  case pm.ackNotifyCh <- struct{}{}:
@@ -150,12 +154,12 @@ func (pm *PeerManager) GetConnectedSnapshots() []snapshots.Snapshot {
 }
 
 func (pm *PeerManager) SetMySnapshot(elevator controller.Elevator) error{
-	mySnapshot, err := pm.getSnapshot(pm.myID)
-	if err != nil{
-		return err
-	}
+	oldVersion := 0
 
-	oldVersion := mySnapshot.Version
+	mySnapshot, err := pm.getSnapshot(pm.myID)
+	if err == nil{
+		oldVersion = mySnapshot.Version
+	}
 
 	sm := pm.snapshotManager
 	sm.SetSnapshot(pm.myID, oldVersion + 1, elevator) 
