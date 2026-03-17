@@ -90,7 +90,7 @@ func (pm *PeerManager) Run() error{
 
 				pm.hallOrderMutex.Lock()
 				oldHallOrders := pm.hallOrders
-				newHallOrders := pm.snapshotManager.ComputeHallOrders(msg.Snapshots)
+				newHallOrders := pm.snapshotManager.ComputeHallOrders()
 				if oldHallOrders != newHallOrders{
 					pm.hallOrders = newHallOrders
   				select {
