@@ -2,11 +2,11 @@ package main
 
 import (
 	//	backup "sanntidslab/backup_handler"
+	"encoding/json"
 	"log"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	"sanntidslab/peers"
-	"encoding/json"
 	"time"
 )
 
@@ -34,12 +34,14 @@ func main() {
 	pm.SetMySnapshot(myElevatorState)
 
 	buttonCh := ec.SubscribeButtons()
-	//stateCh := ec.SubscribeState()
+	stateCh := ec.SubscribeState()
 
 	ec.Start()
 	log.Println("Started elevator controller")
 
 	for {
+		snapshot, _ := pm.GetMySnapshot()
+		log.Println("My snappshot:", snapshot.Elevator.ConfirmedHallOrders)
 		select {
 		case <-pm.OrderChangeCh:
 			orders := pm.GetOrders()
@@ -57,6 +59,9 @@ func main() {
 					ec.SetCabOrders(stateToAck.PressedCabButtons)
 				}
 			}()
+		case <-stateCh:
+			state := ec.GetElevatorState()
+			pm.SetMySnapshot(state)
 		}
 	}
 	//	case <-buttonCh:
