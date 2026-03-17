@@ -89,16 +89,19 @@ func (pm *PeerManager) Run() error{
 				pm.ackMutex.Unlock()
 
 				pm.hallOrderMutex.Lock()
+
 				oldHallOrders := pm.hallOrders
 				newHallOrders := pm.snapshotManager.ComputeHallOrders()
 				if oldHallOrders != newHallOrders{
 					pm.hallOrders = newHallOrders
+					pm.hallOrderMutex.Unlock()
   				select {
   					case pm.OrderChangeCh <- struct{}{}:
   					default:
   				}
+				} else {
+					pm.hallOrderMutex.Unlock()
 				}
-				pm.hallOrderMutex.Unlock()
 
 			}
 			
