@@ -6,6 +6,7 @@ import (
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	"sanntidslab/peers"
+	"encoding/json"
 	"time"
 )
 
@@ -41,8 +42,9 @@ func main() {
 	for {
 		select {
 		case <-pm.OrderChangeCh:
-			log.Println("Got order")
 			orders := pm.GetOrders()
+			b, _ := json.Marshal(orders)
+			log.Printf("Orders: %s", string(b))
 			ec.SetGlobalHallOrders(orders)
 		case <-pm.DisconnectedPeerCh:
 		case <-buttonCh:

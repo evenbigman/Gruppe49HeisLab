@@ -26,12 +26,12 @@ func Receiver(port int, rx chan Msg){
 	if err != nil {panic(err)}
 	defer conn.Close()
 
-	log.Printf("[Receiver] Started on port: %d", port)
+	//log.Printf("[Receiver] Started on port: %d", port)
 
 	buffer := make([]byte, bufferSize)
 
 	for{
-		n, addr, err := conn.ReadFrom(buffer)
+		n, _, err := conn.ReadFrom(buffer)
 		if err != nil {
 			log.Printf("[Receiver] Reading error: %s", err)
 			continue
@@ -45,10 +45,10 @@ func Receiver(port int, rx chan Msg){
 			continue
 		}
 
-		if udpAddr, ok := addr.(*net.UDPAddr); ok{
-			log.Printf("[Receiver] Received %d bytes from %s at port %d", n, udpAddr.IP, udpAddr.Port)
-			rx <- msg
-		}
+		rx <- msg
+		//if udpAddr, ok := addr.(*net.UDPAddr); ok{
+			//log.Printf("[Receiver] Received %d bytes from %s at port %d", n, udpAddr.IP, udpAddr.Port)
+		//}
 	}
 }
 
@@ -72,13 +72,13 @@ func Transmitter(port int, tx chan Msg){
 			log.Printf("[Transmitter] Encoding error: %s", err)
 			continue
 		}
-		n, err := conn.WriteTo(data, addr)
+		_, err = conn.WriteTo(data, addr)
 		if err != nil {
 			log.Printf("[Transmitter] Sending error: %s", err)
 			continue
 		}
 
-		log.Printf("[Transmitter] Sending %d bytes", n)
+		//log.Printf("[Transmitter] Sending %d bytes", n)
 	}
 }
 
