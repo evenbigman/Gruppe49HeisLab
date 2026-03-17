@@ -11,7 +11,6 @@ import(
 	"sanntidslab/peers/broadcast"
 	"sanntidslab/config"
 	"sanntidslab/controller"
-	"encoding/json"
 	"sync"
 	"log"
 	"net"
@@ -80,9 +79,6 @@ func (pm *PeerManager) Run() error{
 				newOrderFound, ackedVersion, orders := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
 				pm.lastAckedVersion = ackedVersion
-
-				b, _:= json.Marshal(pm.snapshotManager.GetSnapshots())
-				log.Println(string(b))
 
 				select {
 				  case pm.ackNotifyCh <- struct{}{}:

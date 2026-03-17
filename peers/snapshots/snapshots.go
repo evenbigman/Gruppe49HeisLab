@@ -5,6 +5,7 @@ package snapshots
 //TODO: MAke singellton
 //TODO: Prevent integer overflow on version number
 //TODO: Refactor MergeSnapshots, fix abstraction layer together with peers
+//TODO: GetORDERS which exist wwhile you havent joined
 
 import(
 	"sanntidslab/controller"
