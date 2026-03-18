@@ -82,13 +82,13 @@ func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot {
 	return output
 }
 
-func (sm *SnapshotManager) ComputeHallOrders(newSnapshots map[uint64]Snapshot) [config.NumFloors][2]bool {
+func (sm *SnapshotManager) ComputeHallOrders(oldSnapshots map[uint64]Snapshot) [config.NumFloors][2]bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
 	var orders [config.NumFloors][2]bool
 
-	oldSnapshots := sm.snapshots
+	newSnapshots := sm.snapshots
 
 	for id, newSnapshot := range newSnapshots {
 		oldSnapshot := oldSnapshots[id]
