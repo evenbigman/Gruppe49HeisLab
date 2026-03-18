@@ -44,12 +44,15 @@ func (sm *StatusManager) UpdateStatus(peerID uint64){
 	sm.mutex.Lock()	
 	defer sm.mutex.Unlock()
 	
-	_, peerIsStored := sm.peers[peerID]
+	peer, peerIsStored := sm.peers[peerID]
 	if !peerIsStored{
-		sm.peers[peerID] = status{
+		peer = status{
 			LastSeen: time.Now(),
 			Connected: true,
 		}
+	} else {
+		peer.LastSeen = time.Now()
+		peer.Connected = true
 	}
 }
 

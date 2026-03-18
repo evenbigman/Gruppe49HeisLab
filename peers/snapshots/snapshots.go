@@ -1,58 +1,64 @@
 package snapshots
+
 //TODO: Add logging
 //TODO: Add proper error handling
 //TODO: Add subscriber model to get snapshot changes of peers on a channel
 //TODO: MAke singellton
 //TODO: Prevent integer overflow on version number
 //TODO: Refactor MergeSnapshots, fix abstraction layer together with peers
+//TODO: GetORDERS which exist wwhile you havent joined
 
-import(
+import (
+	//"log"
+	"sanntidslab/config"
 	"sanntidslab/controller"
 	"sync"
 )
 
-type Snapshot struct{
-	Version int
+type Snapshot struct {
+	Version  int
 	Elevator controller.Elevator
 }
-type SnapshotManager struct{
-	mutex sync.RWMutex
+type SnapshotManager struct {
+	mutex     sync.RWMutex
 	snapshots map[uint64]Snapshot
-	myID uint64
+	myID      uint64
 }
 
-func NewSnapshotManager(myID uint64) *SnapshotManager{
+func NewSnapshotManager(myID uint64) *SnapshotManager {
 	sm := &SnapshotManager{
-		myID: myID,
+		myID:      myID,
 		snapshots: make(map[uint64]Snapshot),
-
-	}	
+	}
 
 	return sm
 }
 
-//Takes incoming state, updates if necessary. Also checks if new order has come :O And returnsed lowest version they have of our state
-func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (bool, int){
+// Takes incoming state, updates if necessary. Also checks if new order has come :O And returnsed lowest version they have of our state
+func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (ackedVersion int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	newOrderFound := false
-	ackedVersion := 0
-	
-	for rcvdID, rcvdSnapshot := range incomingSnapshots{
-		if rcvdID == sm.myID{
-			ackedVersion = rcvdSnapshot.Version
+	ackedVersion = 0
+
+	for rcvdID, rcvdSnapshot := range incomingSnapshots {
+		if rcvdID == sm.myID {
+			_, mySnapshotExists := sm.snapshots[sm.myID]
+			if mySnapshotExists {
+				ackedVersion = rcvdSnapshot.Version
+			} else {
+				sm.snapshots[sm.myID] = rcvdSnapshot
+			}
 			continue
 		}
-		
+
 		storedSnapshot, elevatorIsStored := sm.snapshots[rcvdID]
 		if !elevatorIsStored ||
-		rcvdSnapshot.Version > storedSnapshot.Version {
-			newOrderFound = sm.checkIfNewOrder(rcvdID, rcvdSnapshot)
+			rcvdSnapshot.Version > storedSnapshot.Version {
 			sm.snapshots[rcvdID] = rcvdSnapshot
 		}
 	}
-	return newOrderFound, ackedVersion
+	return ackedVersion
 }
 
 func (sm *SnapshotManager) SetSnapshot(ID uint64, version int, elevator controller.Elevator) {
@@ -60,40 +66,42 @@ func (sm *SnapshotManager) SetSnapshot(ID uint64, version int, elevator controll
 	defer sm.mutex.Unlock()
 
 	sm.snapshots[ID] = Snapshot{
-		Version: version,
+		Version:  version,
 		Elevator: elevator,
 	}
 }
 
-func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot{
+func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
-	
+
 	output := make(map[uint64]Snapshot, len(sm.snapshots))
 	for id, storedSnapshot := range sm.snapshots {
-		output[id] = storedSnapshot 
+		output[id] = storedSnapshot
 	}
 	return output
 }
 
-//Not very good, really goes into controller module
-func (sm *SnapshotManager) checkIfNewOrder(ID uint64, newSnapshot Snapshot) bool{
+func (sm *SnapshotManager) ComputeHallOrders() [config.NumFloors][2]bool {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
 
-	newOrderFound := false
+	var orders [config.NumFloors][2]bool
 
-	oldSnapshot, elevatorIsStored := sm.snapshots[ID]		
-	
-	//Check for every hall order (up and down)
-	for i, floor := range newSnapshot.Elevator.PressedHallButtons{
-		for j, orderExists := range floor{
-			//If order is already stored, does the new state contain a new order?
-			if elevatorIsStored{
-				oldOrderExists := oldSnapshot.Elevator.PressedHallButtons[i][j]
-				if !oldOrderExists && orderExists{
-					newOrderFound = true
+
+	for id, snapshot := range sm.snapshots {
+		if id == sm.myID{
+			continue
+		}
+		for i := range orders{
+			for j := range orders[i]{
+				if snapshot.Elevator.ConfirmedHallOrders[i][j] ||
+				snapshot.Elevator.PressedHallButtons[i][j] {
+					orders[i][j] = true
 				}
 			}
 		}
 	}
-	return newOrderFound
+	//log.Println()
+	return orders
 }
