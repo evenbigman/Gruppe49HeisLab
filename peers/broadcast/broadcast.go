@@ -47,7 +47,7 @@ func Receiver(port int, rx chan Msg) {
 			continue
 		}
 
-		log.Println(msg)
+		//log.Println(msg)
 		rx <- msg
 		//if udpAddr, ok := addr.(*net.UDPAddr); ok{
 		//log.Printf("[Receiver] Received %d bytes from %s at port %d", n, udpAddr.IP, udpAddr.Port)

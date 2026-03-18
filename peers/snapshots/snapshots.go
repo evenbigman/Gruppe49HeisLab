@@ -9,7 +9,7 @@ package snapshots
 //TODO: GetORDERS which exist wwhile you havent joined
 
 import (
-	"log"
+	//"log"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	"sync"
@@ -99,6 +99,6 @@ func (sm *SnapshotManager) ComputeHallOrders() [config.NumFloors][2]bool {
 			}
 		}
 	}
-	log.Println()
+	//log.Println()
 	return orders
 }
