@@ -70,7 +70,6 @@ func (pm *PeerManager) Run() error {
 	defer ticker.Stop()
 
 	go pm.statusManager.Run()
-	elevatorController := controller.GetController()
 
 	for {
 		select {
@@ -96,7 +95,7 @@ func (pm *PeerManager) Run() error {
 
 				oldHallOrders := pm.hallOrders
 				newHallOrders := pm.snapshotManager.ComputeHallOrders()
-				if oldHallOrders != newHallOrders {
+				if hallOrdersEqual(oldHallOrders, newHallOrders) {
 					pm.hallOrders = newHallOrders
 					pm.hallOrderMutex.Unlock()
 					pm.OrderChangeCh <- struct{}{}
@@ -107,8 +106,6 @@ func (pm *PeerManager) Run() error {
 			}
 
 		case <-ticker.C:
-			elevator := elevatorController.GetElevatorState()
-			pm.SetMySnapshot(elevator)
 			snapshots := pm.snapshotManager.GetSnapshots()
 			msg := broadcast.Msg{
 				Sender:    pm.myID,
@@ -197,6 +194,17 @@ func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
 	}
 
 	return snapshot, nil
+}
+
+func hallOrdersEqual(a, b [config.NumFloors][2]bool) bool{
+	for i := range a {
+		for j := range a[i] {
+			if a[i][j] != b[i][j] {
+				return false
+			}
+		}	
+	}
+	return true
 }
 
 func getMyID() uint64 { //Get mac address
