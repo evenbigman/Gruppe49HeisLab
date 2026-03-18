@@ -88,12 +88,15 @@ func (sm *SnapshotManager) ComputeHallOrders() [config.NumFloors][2]bool {
 
 	var orders [config.NumFloors][2]bool
 
-	for _, snapshot := range sm.snapshots {
-		for i, floor := range snapshot.Elevator.ConfirmedHallOrders {
-			//log.Println("Floor:", floor)
-			for j, order := range floor {
-				//log.Println("Order", order)
-				if order && snapshot.Elevator.PressedHallButtons[i][j] {
+
+	for id, snapshot := range sm.snapshots {
+		if id == sm.myID{
+			continue
+		}
+		for i := range orders{
+			for j := range orders[i]{
+				if snapshot.Elevator.ConfirmedHallOrders[i][j] ||
+				snapshot.Elevator.PressedHallButtons[i][j] {
 					orders[i][j] = true
 				}
 			}
