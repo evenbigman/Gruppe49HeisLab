@@ -91,16 +91,13 @@ func (sm *SnapshotManager) ComputeHallOrders(oldSnapshots map[uint64]Snapshot) [
 	newSnapshots := sm.snapshots
 
 	for id, newSnapshot := range newSnapshots {
-		if id == sm.myID{
-			continue
-		}
 		oldSnapshot := oldSnapshots[id]
 		for i, floor := range newSnapshot.Elevator.ConfirmedHallOrders {
 			//log.Println("Floor:", floor)
 			for j, direction := range floor {
 				//log.Println("Order", order)
-				oldOrder := oldSnapshot.Elevator.ConfirmedHallOrders[i][j]
-				newOrder := direction
+				oldOrder := oldSnapshot.Elevator.ConfirmedHallOrders[i][j] && oldSnapshot.Elevator.PressedHallButtons[i][j]
+				newOrder := direction && newSnapshot.Elevator.PressedHallButtons[i][j]
 				if oldOrder == newOrder {
 					continue
 				} else if newOrder {
