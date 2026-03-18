@@ -8,6 +8,7 @@ const (
 	BcastPort         = 16569
 	BcastInterval     = 100 //ms
 	TimeoutInterval   = 1000
+	ConnectionTimeThreshold = 2000 * time.Millisecond
 	DoorOpenTime      = 3 * time.Second
 	InitDelay         = 5 * time.Second
 	TimeoutAck        = 1 * time.Second
