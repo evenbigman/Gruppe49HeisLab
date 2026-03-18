@@ -50,13 +50,16 @@ func main() {
 			ec.SetGlobalHallOrders(orders)
 		case <-pm.DisconnectedPeerCh:
 		case <-buttonCh:
-			stateToAck := ec.GetElevatorState()
 			go func() {
+				stateToAck := ec.GetElevatorState()
 				err := pm.WaitForAck(stateToAck, config.TimeoutAck)
 				if err != nil {
 				} else {
 					ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
 					ec.SetCabOrders(stateToAck.PressedCabButtons)
+					stateToAck.ConfirmedHallOrders = stateToAck.PressedHallButtons
+					stateToAck.CabOrders = stateToAck.PressedCabButtons
+					pm.SetMySnapshot(stateToAck)
 				}
 			}()
 		case <-stateCh:

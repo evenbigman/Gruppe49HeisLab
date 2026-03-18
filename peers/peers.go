@@ -95,7 +95,7 @@ func (pm *PeerManager) Run() error {
 
 				oldHallOrders := pm.hallOrders
 				newHallOrders := pm.snapshotManager.ComputeHallOrders()
-				if hallOrdersEqual(oldHallOrders, newHallOrders) {
+				if !hallOrdersEqual(oldHallOrders, newHallOrders) {
 					pm.hallOrders = newHallOrders
 					pm.hallOrderMutex.Unlock()
 					pm.OrderChangeCh <- struct{}{}
