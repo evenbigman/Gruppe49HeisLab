@@ -468,7 +468,6 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	if ec.moreOrdersAbove() {
 		ec.setState(MovingUp)
 		ec.elevatorDriveUp()
-		ec.clearHallorder(floor, up)
 		return
 	}
 
@@ -476,7 +475,6 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 		ec.setState(MovingDown)
 		ec.stopElevatorAtCurrentFloor()
 		ec.elevatorDriveDown()
-		ec.clearHallorder(floor, down)
 		return
 	}
 
@@ -501,7 +499,6 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	if ec.moreOrdersBelow() {
 		ec.setState(MovingDown)
 		ec.elevatorDriveDown()
-		ec.clearHallorder(floor, down)
 		return
 	}
 
@@ -509,7 +506,6 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 		ec.setState(MovingUp)
 		ec.stopElevatorAtCurrentFloor()
 		ec.elevatorDriveUp()
-		ec.clearHallorder(floor, up)
 		return
 	}
 
