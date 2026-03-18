@@ -82,28 +82,20 @@ func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot {
 	return output
 }
 
-func (sm *SnapshotManager) ComputeHallOrders(newSnapshots map[uint64]Snapshot) [config.NumFloors][2]bool {
+func (sm *SnapshotManager) ComputeHallOrders() [config.NumFloors][2]bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
 	var orders [config.NumFloors][2]bool
 
-	oldSnapshots := sm.snapshots
-
-	for id, newSnapshot := range newSnapshots {
-		oldSnapshot := oldSnapshots[id]
-		for i, floor := range newSnapshot.Elevator.ConfirmedHallOrders {
+	for _, snapshot := range sm.snapshots {
+		for i, floor := range snapshot.Elevator.ConfirmedHallOrders {
 			//log.Println("Floor:", floor)
-			for j, direction := range floor {
+			for j, order := range floor {
 				//log.Println("Order", order)
-				oldOrder := oldSnapshot.Elevator.ConfirmedHallOrders[i][j] && oldSnapshot.Elevator.PressedHallButtons[i][j]
-				newOrder := direction && newSnapshot.Elevator.PressedHallButtons[i][j]
-				if oldOrder == newOrder {
-					continue
-				} else if newOrder {
+				if order && snapshot.Elevator.PressedHallButtons[i][j] {
 					orders[i][j] = true
 				}
-
 			}
 		}
 	}
