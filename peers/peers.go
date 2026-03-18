@@ -134,7 +134,7 @@ func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Dur
 			pm.ackMutex.RLock()
 			ackedVersion := pm.lastAckedVersion
 			pm.ackMutex.RUnlock()
-			if ackedVersion >= targetVersion {
+			if ackedVersion == targetVersion {
 				return nil
 			}
 		case <-deadline:
