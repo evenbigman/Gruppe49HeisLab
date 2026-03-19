@@ -465,15 +465,15 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	floor := state.CurrentFloor
 
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][up] {
+		ec.stopElevatorAtCurrentFloor()
 		ec.clearCabOrder(state.CurrentFloor)
 		ec.clearHallorder(floor, up)
-		ec.stopElevatorAtCurrentFloor()
 	}
 
 	if floor == maxFloor {
+		ec.stopElevatorAtCurrentFloor()
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
-		ec.stopElevatorAtCurrentFloor()
 	}
 
 	if ec.moreOrdersAbove() {
@@ -490,8 +490,8 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	}
 
 	if state.AssignedHallOrders[floor][down] {
-		ec.clearHallorder(floor, down)
 		ec.stopElevatorAtCurrentFloor()
+		ec.clearHallorder(floor, down)
 	}
 
 	ec.setState(Idle)
@@ -508,9 +508,9 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	}
 
 	if floor == 0 {
+		ec.stopElevatorAtCurrentFloor()
 		ec.clearHallorder(floor, up)
 		ec.clearCabOrder(state.CurrentFloor)
-		ec.stopElevatorAtCurrentFloor()
 
 	}
 
@@ -528,8 +528,8 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	}
 
 	if state.AssignedHallOrders[floor][up] {
-		ec.stopElevatorAtCurrentFloor()
 		ec.clearHallorder(floor, up)
+		ec.stopElevatorAtCurrentFloor()
 	}
 	ec.setState(Idle)
 }
