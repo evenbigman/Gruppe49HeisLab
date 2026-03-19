@@ -1,4 +1,5 @@
 package main
+
 //BUG: Hall orders get assigned even though offline
 //BUG: Goes through roof
 //BUG: Hall orders assigned to where you are standing from others, will not get removed when taken (on the others side)
@@ -14,6 +15,7 @@ import (
 	"sanntidslab/peers"
 	"sanntidslab/peers/snapshots"
 	"sort"
+	"time"
 )
 
 func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
@@ -81,6 +83,7 @@ func main() {
 	//	backup.Init()
 
 	pm := peers.GetPeerManager()
+	tickForceSnapshotUpdate := time.NewTicker(500 * time.Millisecond)
 
 	pm.Init()
 	go pm.Run()
@@ -132,16 +135,21 @@ func main() {
 					}
 				}()
 			} else { //Go solo
-					state := ec.GetElevatorState()
-					ec.SetCabOrders(state.PressedCabButtons)
-					state.CabOrders = state.PressedCabButtons
-					pm.SetMySnapshot(state)
-				}
+				state := ec.GetElevatorState()
+				ec.SetCabOrders(state.PressedCabButtons)
+				state.CabOrders = state.PressedCabButtons
+				pm.SetMySnapshot(state)
+			}
 		case <-stateCh:
 			//Blir knapper satt her?
 			state := ec.GetElevatorState()
 			pm.SetMySnapshot(state)
 			assignHallOrders(pm, ec, &state)
+		case <-tickForceSnapshotUpdate.C:
+			state := ec.GetElevatorState()
+			pm.SetMySnapshot(state)
+			assignHallOrders(pm, ec, &state)
+
 		}
 	}
 	//	case <-buttonCh:
