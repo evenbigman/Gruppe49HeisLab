@@ -694,17 +694,14 @@ func (ec *ElevatorController) stopElevatorAtCurrentFloor() error {
 }
 
 func (ec *ElevatorController) stopElevator() {
-	fmt.Println("Motor stopped")
 	elevio.SetMotorDirection(elevio.MD_Stop)
 }
 
 func (ec *ElevatorController) elevatorDriveUp() {
-	fmt.Println("Driving up")
 	elevio.SetMotorDirection(elevio.MD_Up)
 }
 
 func (ec *ElevatorController) elevatorDriveDown() {
-	fmt.Println("Driving down")
 	elevio.SetMotorDirection(elevio.MD_Down)
 }
 
