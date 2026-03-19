@@ -107,8 +107,8 @@ func (pm *PeerManager) Run() error {
 				pm.hallOrderMutex.Lock()
 				
 				var connectedIds []uint64
-				for id, _ := range msg.Snapshots{
-					if statuses[id].Connected{
+				for id, status := range statuses{
+					if status.Connected{
 						connectedIds = append(connectedIds, id)
 						connectedIds = append(connectedIds, pm.myID)
 					}
