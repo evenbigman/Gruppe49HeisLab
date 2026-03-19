@@ -53,8 +53,10 @@ func (sm *StatusManager) UpdateStatus(peerID uint64){
 			LastSeen: time.Now(),
 			Connected: false,
 		}
+		sm.peers[peerID] = peer
 	} else {
 		peer.LastSeen = time.Now()
+		sm.peers[peerID] = peer
 	}
 }
 
