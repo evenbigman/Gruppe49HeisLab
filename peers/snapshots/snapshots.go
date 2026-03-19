@@ -27,7 +27,7 @@ type SnapshotManager struct {
 
 var (
 	instance *SnapshotManager
-	once     sync.Once
+	once sync.Once
 )
 
 func GetSnapshotManager(myID uint64) *SnapshotManager {
@@ -96,10 +96,11 @@ func (sm *SnapshotManager) ComputeHallOrders() [config.NumFloors][2]bool {
 
 	var orders [config.NumFloors][2]bool
 
+
 	for _, snapshot := range sm.snapshots {
-		for i := range orders {
-			for j := range orders[i] {
-				if // snapshot.Elevator.ConfirmedHallOrders[i][j] ||
+		for i := range orders{
+			for j := range orders[i]{
+				if snapshot.Elevator.ConfirmedHallOrders[i][j] ||
 				snapshot.Elevator.PressedHallButtons[i][j] {
 					orders[i][j] = true
 				}

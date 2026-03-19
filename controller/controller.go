@@ -755,6 +755,7 @@ func (ec *ElevatorController) clearCabOrder(floor int) {
 	ec.elevator.PressedCabButtons[floor] = false
 	ec.notfiyCabOrders()
 	ec.notifyState()
+	ec.notfiyCabButton()
 }
 
 func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
