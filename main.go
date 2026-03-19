@@ -94,7 +94,7 @@ func main() {
 	myElevatorState := ec.GetElevatorState()
 	pm.SetMySnapshot(myElevatorState)
 
-	cabButtonCh := ec.SubscribeCabButtons()
+	buttonCh := ec.SubscribeButtons()
 	stateCh := ec.SubscribeState()
 
 	ec.Start()
@@ -114,7 +114,7 @@ func main() {
 			state := ec.GetElevatorState()
 			assignHallOrders(pm, ec, &state)
 
-		case <-cabButtonCh:
+		case <-buttonCh:
 			if pm.ImOnline() {
 				go func() { //Wait for ack
 					stateToAck := ec.GetElevatorState()

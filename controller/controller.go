@@ -59,7 +59,7 @@ type ElevatorController struct {
 	initOnce               sync.Once
 	stateChangeSubscribers []chan struct{}
 	floorSubscribers       []chan struct{}
-	cabButtonSubscribers   []chan struct{}
+	buttonSubscribers      []chan struct{}
 	hallOrderSubscriber    []chan struct{}
 	cabOrderSubscriber     []chan struct{}
 	obstructionSubscriber  []chan struct{}
@@ -173,8 +173,8 @@ func (ec *ElevatorController) SubscribeFloor() <-chan struct{} {
 	return ec.addSubscriber(&ec.floorSubscribers)
 }
 
-func (ec *ElevatorController) SubscribeCabButtons() <-chan struct{} {
-	return ec.addSubscriber(&ec.cabButtonSubscribers)
+func (ec *ElevatorController) SubscribeButtons() <-chan struct{} {
+	return ec.addSubscriber(&ec.buttonSubscribers)
 }
 
 func (ec *ElevatorController) SubscribeCabOrders() <-chan struct{} {
@@ -228,8 +228,8 @@ func (ec *ElevatorController) notifyState() { // NOTE: might be better with a no
 	ec.notify(&ec.stateChangeSubscribers)
 }
 
-func (ec *ElevatorController) notfiyCabButton() {
-	ec.notify(&ec.cabButtonSubscribers)
+func (ec *ElevatorController) notfiyButton() {
+	ec.notify(&ec.buttonSubscribers)
 }
 
 func (ec *ElevatorController) notfiyHallOrders() {
@@ -283,9 +283,9 @@ func (ec *ElevatorController) pollElevatorState() {
 				ec.stateLock.Lock()
 				ec.elevator.PressedCabButtons[v.Floor] = true
 				ec.stateLock.Unlock()
-				ec.notfiyCabButton()
 
 			}
+			ec.notfiyButton()
 			ec.notifyState()
 
 		case v := <-floor:
@@ -754,6 +754,7 @@ func (ec *ElevatorController) clearCabOrder(floor int) {
 	ec.elevator.PressedCabButtons[floor] = false
 	ec.notfiyCabOrders()
 	ec.notifyState()
+	ec.notfiyButton()
 }
 
 func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
@@ -763,6 +764,7 @@ func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
 	ec.elevator.ConfirmedHallOrders[floor][direction] = false
 	ec.elevator.PressedHallButtons[floor][direction] = false
 	ec.notfiyHallOrders()
+	ec.notfiyButton()
 	ec.notifyState()
 }
 
