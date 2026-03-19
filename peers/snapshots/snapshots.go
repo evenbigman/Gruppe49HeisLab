@@ -42,7 +42,7 @@ func GetSnapshotManager(myID uint64) *SnapshotManager {
 	return instance
 }
 
-// Takes incoming state, updates if necessary. And returnsed lowest version they have of our state
+// Takes incoming state, updates if necessary. Also checks if new order has come :O And returnsed lowest version they have of our state
 func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (ackedVersion int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
@@ -96,18 +96,13 @@ func (sm *SnapshotManager) ComputeOrders(oldSnapshots map[uint64]Snapshot, conne
 
 	var orders [config.NumFloors][2]bool
 
-	//Check for change in orders in this priority:
-	// rising edge > falling edge > constant high > constant low
-	// no previous order into high/low means rising/falling respectively
-	// MAYBE BUG: when joining network
+	//Check for rising edge in orders,
 	for i := range orders{
 		for j := range orders[i]{
 			changed := false
 			for _, id := range connectedIds{
 				oldSnapshot, oldSnapshotExists := oldSnapshots[id]
-				newSnapshot, _ := newSnapshots[id]
-
-				newOrder := newSnapshot.Elevator.PressedHallButtons[i][j]
+				newOrder := newSnapshots[id].Elevator.PressedHallButtons[i][j]
 				if !oldSnapshotExists {
 					changed = true
 					orders[i][j] = newOrder

@@ -85,9 +85,9 @@ func (pm *PeerManager) Run() error {
 		case msg := <-pm.broadcastRx:
 			if msg.Sender != pm.myID {
 				pm.statusManager.UpdateStatus(msg.Sender)
-				statuses := pm.statusManager.GetStatuses()
 
 				oldSnapshots := pm.snapshotManager.GetSnapshots()
+				statuses := pm.statusManager.GetStatuses()
 
 				ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
@@ -104,18 +104,13 @@ func (pm *PeerManager) Run() error {
 					pm.ackMutex.Unlock()
 				}
 
-				newSnapshots := msg.Snapshots
 				var connectedIds []uint64
 				for id, status := range statuses {
-					versionChanged :=  newSnapshots[id].Version > oldSnapshots[id].Version
-					if status.Connected  && versionChanged{
+					if status.Connected {
 						connectedIds = append(connectedIds, id)
 					}
 				}
-				myVersionChanged := msg.Snapshots[pm.myID].Version > oldSnapshots[pm.myID].Version
-				if myVersionChanged {
-					connectedIds = append(connectedIds, pm.myID)
-				}
+				connectedIds = append(connectedIds, pm.myID)
 
 				oldOrders := pm.GetOrders()
 				newOrders := pm.snapshotManager.ComputeOrders(oldSnapshots, connectedIds)
