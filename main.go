@@ -3,6 +3,7 @@ package main
 import (
 	//	backup "sanntidslab/backup_handler"
 
+	"fmt"
 	"log"
 	"sanntidslab/config"
 	"sanntidslab/controller"
@@ -29,6 +30,18 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
+	myIndex := -1
+	for i, id := range ids {
+		if id == myID {
+			myIndex = i
+			break
+		}
+	}
+	if myIndex == -1 {
+		log.Printf("could not find my id %d in sorted ids", myID)
+		return
+	}
+
 	allSnapshots := make([]snapshots.Snapshot, 0, len(ids))
 	for _, id := range ids {
 		allSnapshots = append(allSnapshots, snapshotByID[id])
@@ -51,7 +64,12 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 		panic("could not get hall assignments")
 	}
 
-	myOrders := hallAssignments["id_1"]
+	assignmentKey := fmt.Sprintf("id_%d", myIndex+1)
+	myOrders, ok := hallAssignments[assignmentKey]
+	if !ok {
+		log.Printf("missing hall assignment for %s", assignmentKey)
+		return
+	}
 
 	ec.AssignHallOrders(myOrders)
 }
