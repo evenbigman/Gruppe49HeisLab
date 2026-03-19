@@ -465,15 +465,19 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	floor := state.CurrentFloor
 
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][up] {
-		ec.stopElevatorAtCurrentFloor()
+		ec.stopElevator()
+		time.Sleep(500 * time.Millisecond)
 		ec.clearCabOrder(state.CurrentFloor)
 		ec.clearHallorder(floor, up)
+		ec.stopElevatorAtCurrentFloor()
 	}
 
 	if floor == maxFloor {
-		ec.stopElevatorAtCurrentFloor()
+		ec.stopElevator()
+		time.Sleep(500 * time.Millisecond)
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
+		ec.stopElevatorAtCurrentFloor()
 	}
 
 	if ec.moreOrdersAbove() {
@@ -502,15 +506,19 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	floor := state.CurrentFloor
 
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][down] {
-		ec.stopElevatorAtCurrentFloor()
+		ec.stopElevator()
+		time.Sleep(500 * time.Millisecond)
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
+		ec.stopElevatorAtCurrentFloor()
 	}
 
 	if floor == 0 {
-		ec.stopElevatorAtCurrentFloor()
+		ec.stopElevator()
+		time.Sleep(500 * time.Millisecond)
 		ec.clearHallorder(floor, up)
 		ec.clearCabOrder(state.CurrentFloor)
+		ec.stopElevatorAtCurrentFloor()
 
 	}
 
