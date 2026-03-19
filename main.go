@@ -9,7 +9,6 @@ import (
 	"sanntidslab/peers"
 )
 
-// assignHallOrders combines your own orders with peer orders and applies them
 func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
 
 	var myOrders [config.NumFloors][2]bool
