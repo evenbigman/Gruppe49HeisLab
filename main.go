@@ -78,18 +78,25 @@ func main() {
 			assignHallOrders(pm, ec, &state)
 
 		case <-buttonCh:
-			go func() {
-				stateToAck := ec.GetElevatorState()
-				err := pm.WaitForAck(stateToAck, config.TimeoutAck)
-				if err != nil {
-				} else {
-					ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
-					ec.SetCabOrders(stateToAck.PressedCabButtons)
-					stateToAck.ConfirmedHallOrders = stateToAck.PressedHallButtons
-					stateToAck.CabOrders = stateToAck.PressedCabButtons
-					pm.SetMySnapshot(stateToAck)
-				}
-			}()
+			if pm.ImOnline() {
+				go func() { //Wait for ack
+					stateToAck := ec.GetElevatorState()
+					err := pm.WaitForAck(stateToAck, config.TimeoutAck)
+					if err != nil {
+					} else {
+						ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
+						ec.SetCabOrders(stateToAck.PressedCabButtons)
+						stateToAck.ConfirmedHallOrders = stateToAck.PressedHallButtons
+						stateToAck.CabOrders = stateToAck.PressedCabButtons
+						pm.SetMySnapshot(stateToAck)
+					}
+				}()
+			} else { //Go solo
+				state := ec.GetElevatorState()
+				ec.SetCabOrders(state.PressedCabButtons)
+				state.CabOrders = state.PressedCabButtons
+				pm.SetMySnapshot(state)
+			}
 		case <-stateCh:
 			state := ec.GetElevatorState()
 			pm.SetMySnapshot(state)
