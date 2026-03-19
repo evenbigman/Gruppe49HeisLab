@@ -325,6 +325,8 @@ func (ec *ElevatorController) completeWaitingOrders() {
 				ec.handleArrivalAtFloorGoingUp()
 			case MovingDown:
 				ec.handleArrivalAtFloorGoingDown()
+			default:
+				ec.stopElevatorAtCurrentFloor()
 			}
 
 		case <-cabOrderCh:
