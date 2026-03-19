@@ -468,10 +468,9 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	}
 
 	if floor == maxFloor {
-		ec.stopElevatorAtCurrentFloor()
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
-
+		ec.stopElevatorAtCurrentFloor()
 	}
 
 	if ec.moreOrdersAbove() {
@@ -506,9 +505,9 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	}
 
 	if floor == 0 {
-		ec.stopElevatorAtCurrentFloor()
 		ec.clearHallorder(floor, up)
 		ec.clearCabOrder(state.CurrentFloor)
+		ec.stopElevatorAtCurrentFloor()
 
 	}
 
