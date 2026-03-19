@@ -9,6 +9,33 @@ import (
 	"sanntidslab/peers"
 )
 
+// assignHallOrders combines your own orders with peer orders and applies them
+func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
+
+	var myOrders [config.NumFloors][2]bool
+	for i := range myOrders {
+		for j := range myOrders[i] {
+			myOrders[i][j] = state.ConfirmedHallOrders[i][j] || state.PressedHallButtons[i][j]
+		}
+	}
+
+	peerOrders := pm.GetOrders()
+
+	combinedOrders := [config.NumFloors][2]bool{}
+	for i := range combinedOrders {
+		for j := range combinedOrders[i] {
+			combinedOrders[i][j] = myOrders[i][j] || peerOrders[i][j]
+		}
+	}
+
+	ec.SetGlobalHallOrders(combinedOrders)
+
+	b, _ := json.Marshal(combinedOrders)
+	log.Printf("Assigned hall orders: %s", string(b))
+
+	ec.AssignHallOrders(myOrders)
+}
+
 func main() {
 	//	backup.Init()
 
@@ -44,7 +71,13 @@ func main() {
 			b, _ := json.Marshal(orders)
 			log.Printf("Orders: %s", string(b))
 			ec.SetGlobalHallOrders(orders)
+			state := ec.GetElevatorState()
+			assignHallOrders(pm, ec, &state)
+
 		case <-pm.DisconnectedPeerCh:
+			state := ec.GetElevatorState()
+			assignHallOrders(pm, ec, &state)
+
 		case <-buttonCh:
 			go func() {
 				stateToAck := ec.GetElevatorState()
@@ -61,6 +94,7 @@ func main() {
 		case <-stateCh:
 			state := ec.GetElevatorState()
 			pm.SetMySnapshot(state)
+			assignHallOrders(pm, ec, &state)
 		}
 	}
 	//	case <-buttonCh:
