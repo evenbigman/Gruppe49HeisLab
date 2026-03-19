@@ -9,6 +9,7 @@ import(
 )
 
 type status struct{
+	FirstSeen time.Time
 	LastSeen time.Time
 	Connected bool
 }
@@ -16,12 +17,13 @@ type status struct{
 type StatusManager struct{
 	DisconnectedPeerCh chan struct{}
 	peers map[uint64]status
+	connectionTimeThreshold time.Duration
 	timeout time.Duration
 	interval time.Duration
 	mutex sync.RWMutex
 }
 
-func NewStatusManager(timeout time.Duration, interval time.Duration) *StatusManager{
+func NewStatusManager(connectionTimeThreshold time.Duration, timeout time.Duration, interval time.Duration) *StatusManager{
 	sm := &StatusManager{
 		DisconnectedPeerCh: make(chan struct{}),
 		timeout:  timeout,
@@ -47,12 +49,12 @@ func (sm *StatusManager) UpdateStatus(peerID uint64){
 	peer, peerIsStored := sm.peers[peerID]
 	if !peerIsStored{
 		peer = status{
+			FirstSeen: time.Now(),
 			LastSeen: time.Now(),
-			Connected: true,
+			Connected: false,
 		}
 	} else {
 		peer.LastSeen = time.Now()
-		peer.Connected = true
 	}
 }
 
@@ -72,7 +74,11 @@ func (sm *StatusManager) update(){
 	defer sm.mutex.Unlock()
 
 	for id, peer := range sm.peers{
-		if time.Since(peer.LastSeen) >= sm.timeout {
+		if !peer.Connected && time.Since(peer.FirstSeen) >= sm.connectionTimeThreshold{
+			peer.Connected = true
+			sm.peers[id] = peer
+		}
+		if peer.Connected && time.Since(peer.LastSeen) >= sm.timeout {
 			peer.Connected = false
 			sm.peers[id] = peer
 			sm.DisconnectedPeerCh <- struct{}{}

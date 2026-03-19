@@ -44,7 +44,7 @@ func NewPeerManager() *PeerManager {
 		broadcastTx:        make(chan broadcast.Msg),
 		broadcastRx:        make(chan broadcast.Msg),
 		snapshotManager:    snapshots.NewSnapshotManager(myID),
-		statusManager:      status.NewStatusManager(config.BcastInterval, config.TimeoutInterval),
+		statusManager:      status.NewStatusManager(config.ConnectionTimeThreshold, config.BcastInterval, config.TimeoutInterval),
 		initialized:        false,
 		lastAckedVersion:   0,
 		ackNotifyCh:        make(chan struct{}, 1),
