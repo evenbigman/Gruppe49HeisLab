@@ -9,15 +9,30 @@ import (
 	hallrequestassigner "sanntidslab/hall_request_assigner"
 	"sanntidslab/peers"
 	"sanntidslab/peers/snapshots"
+	"sort"
 )
 
 func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
 	mySnapshot, _ := pm.GetMySnapshot()
 	connectedSnapshots := pm.GetConnectedSnapshots()
+	myID := peers.GetMyID()
 
-	allSnapshots := make([]snapshots.Snapshot, 0, 1+len(connectedSnapshots))
-	allSnapshots = append(allSnapshots, mySnapshot)
-	allSnapshots = append(allSnapshots, connectedSnapshots...)
+	snapshotByID := make(map[uint64]snapshots.Snapshot, len(connectedSnapshots)+1)
+	snapshotByID[myID] = mySnapshot
+	for id, snapshot := range connectedSnapshots {
+		snapshotByID[id] = snapshot
+	}
+
+	ids := make([]uint64, 0, len(snapshotByID))
+	for id := range snapshotByID {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
+	allSnapshots := make([]snapshots.Snapshot, 0, len(ids))
+	for _, id := range ids {
+		allSnapshots = append(allSnapshots, snapshotByID[id])
+	}
 
 	log.Println("My elevator: ")
 	log.Println(mySnapshot)
