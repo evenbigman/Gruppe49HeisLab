@@ -94,7 +94,7 @@ func main() {
 	myElevatorState := ec.GetElevatorState()
 	pm.SetMySnapshot(myElevatorState)
 
-	buttonCh := ec.SubscribeButtons()
+	buttonCh := ec.SubscribeCabButtons()
 	stateCh := ec.SubscribeState()
 
 	ec.Start()
