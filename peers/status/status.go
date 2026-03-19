@@ -26,6 +26,7 @@ type StatusManager struct{
 func NewStatusManager(connectionTimeThreshold time.Duration, timeout time.Duration, interval time.Duration) *StatusManager{
 	sm := &StatusManager{
 		DisconnectedPeerCh: make(chan struct{}),
+		connectionTimeThreshold: connectionTimeThreshold,
 		timeout:  timeout,
 		interval: interval,
 		peers: make(map[uint64]status),
@@ -81,8 +82,7 @@ func (sm *StatusManager) update(){
 			sm.peers[id] = peer
 		}
 		if peer.Connected && time.Since(peer.LastSeen) >= sm.timeout {
-			peer.Connected = false
-			sm.peers[id] = peer
+			delete(sm.peers, id)
 			sm.DisconnectedPeerCh <- struct{}{}
 		}	
 	}

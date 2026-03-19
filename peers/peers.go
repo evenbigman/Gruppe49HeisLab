@@ -1,10 +1,11 @@
 package peers
 
-//TODO: Add logging
 //TODO: Handle disconnecting and reconnecting
 //TODO: Make singelton
-//TODO: Add ACKING
 //TODO: Make id type
+//TODO: Make snapshot maps and status maps own types
+//TODO: Only update states based on connected peers (ignore newly connected)
+//TODO: define bcastinterval when initin pm
 
 import (
 	"fmt"
@@ -44,7 +45,7 @@ func NewPeerManager() *PeerManager {
 		broadcastTx:        make(chan broadcast.Msg),
 		broadcastRx:        make(chan broadcast.Msg),
 		snapshotManager:    snapshots.NewSnapshotManager(myID),
-		statusManager:      status.NewStatusManager(config.ConnectionTimeThreshold, config.BcastInterval, config.TimeoutInterval),
+		statusManager:      status.NewStatusManager(config.ConnectionTimeThreshold, config.TimeoutInterval, config.BcastInterval),
 		initialized:        false,
 		lastAckedVersion:   0,
 		ackNotifyCh:        make(chan struct{}, 1),
@@ -66,7 +67,7 @@ func (pm *PeerManager) Run() error {
 		log.Printf("ID: %d", getMyID())
 		return fmt.Errorf("Init() must be called before Run()")
 	}
-	ticker := time.NewTicker(config.BcastInterval * time.Millisecond)
+	ticker := time.NewTicker(config.BcastInterval)
 	defer ticker.Stop()
 
 	go pm.statusManager.Run()
@@ -102,7 +103,6 @@ func (pm *PeerManager) Run() error {
 				} else {
 					pm.hallOrderMutex.Unlock()
 				}
-
 			}
 
 		case <-ticker.C:
@@ -198,6 +198,15 @@ func (pm *PeerManager) GetOrders() [config.NumFloors][2]bool {
 	defer pm.hallOrderMutex.RUnlock()
 
 	return pm.hallOrders
+}
+
+func (pm *PeerManager) ImOnline() bool{
+	connectedSnapshots := pm.GetConnectedSnapshots()
+	if len(connectedSnapshots) != 0 {
+		return true
+	} else {
+		return false
+	}
 }
 
 func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
