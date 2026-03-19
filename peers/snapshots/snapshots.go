@@ -90,19 +90,30 @@ func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot {
 	return output
 }
 
-func (sm *SnapshotManager) ComputeHallOrders() [config.NumFloors][2]bool {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
+func (sm *SnapshotManager) ComputeOrders(oldSnapshots map[uint64]Snapshot, connectedIds []uint64) [config.NumFloors][2]bool {
+
+	newSnapshots := sm.GetSnapshots()
 
 	var orders [config.NumFloors][2]bool
 
+	//Check for rising edge in orders,
+	for i := range orders{
+		for j := range orders[i]{
+			changed := false
+			for _, id := range connectedIds{
+				oldOrder := oldSnapshots[id].Elevator.PressedHallButtons[i][j]
+				newOrder := newSnapshots[id].Elevator.PressedHallButtons[i][j]
 
-	for _, snapshot := range sm.snapshots {
-		for i := range orders{
-			for j := range orders[i]{
-				if snapshot.Elevator.ConfirmedHallOrders[i][j] ||
-				snapshot.Elevator.PressedHallButtons[i][j] {
-					orders[i][j] = true
+				if oldOrder != newOrder{
+					changed = true
+					if newOrder{
+						orders[i][j] = true
+						break //rising edge, set order true -- move to next direction
+					} else {
+						orders[i][j] = false
+					}
+				} else if newOrder == true && changed == false{
+					orders[i][j] = true	
 				}
 			}
 		}
