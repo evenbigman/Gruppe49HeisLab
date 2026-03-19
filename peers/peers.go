@@ -1,7 +1,6 @@
 package peers
 
 //TODO: Handle disconnecting and reconnecting
-//TODO: Make singelton
 //TODO: Make id type
 //TODO: Make snapshot maps and status maps own types
 //TODO: Only update states based on connected peers (ignore newly connected)
@@ -36,7 +35,12 @@ type PeerManager struct {
 	hallOrders         [config.NumFloors][2]bool
 }
 
-func NewPeerManager() *PeerManager {
+var (
+	instance *PeerManager
+	once sync.Once
+)
+
+func GetPeerManager() *PeerManager {
 	myID := getMyID()
 	pm := &PeerManager{
 		OrderChangeCh:      make(chan struct{}),
@@ -44,13 +48,17 @@ func NewPeerManager() *PeerManager {
 		myID:               myID,
 		broadcastTx:        make(chan broadcast.Msg),
 		broadcastRx:        make(chan broadcast.Msg),
-		snapshotManager:    snapshots.NewSnapshotManager(myID),
-		statusManager:      status.NewStatusManager(config.ConnectionTimeThreshold, config.TimeoutInterval, config.BcastInterval),
+		snapshotManager:    snapshots.GetSnapshotManager(myID),
+		statusManager:      status.GetStatusManager(config.ConnectionTimeThreshold, config.TimeoutInterval, config.BcastInterval),
 		initialized:        false,
 		lastAckedVersion:   0,
 		ackNotifyCh:        make(chan struct{}, 1),
 	}
-	return pm
+
+	once.Do(func() {
+		instance = pm
+	})
+	return instance
 }
 
 func (pm *PeerManager) Init() {

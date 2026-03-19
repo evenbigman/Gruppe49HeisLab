@@ -1,7 +1,6 @@
 package status
 //TODO: Add proper error handling
 //TODO: Add logging
-//TODO: Make singelton
 
 import(
 	"time"
@@ -23,7 +22,12 @@ type StatusManager struct{
 	mutex sync.RWMutex
 }
 
-func NewStatusManager(connectionTimeThreshold time.Duration, timeout time.Duration, interval time.Duration) *StatusManager{
+var (
+	instance *StatusManager
+	once sync.Once
+)
+
+func GetStatusManager(connectionTimeThreshold time.Duration, timeout time.Duration, interval time.Duration) *StatusManager{
 	sm := &StatusManager{
 		DisconnectedPeerCh: make(chan struct{}),
 		connectionTimeThreshold: connectionTimeThreshold,
@@ -31,7 +35,10 @@ func NewStatusManager(connectionTimeThreshold time.Duration, timeout time.Durati
 		interval: interval,
 		peers: make(map[uint64]status),
 	}
-	return sm
+	once.Do(func() {
+		instance = sm
+	})
+	return instance
 }
 
 func (sm *StatusManager) Run(){

@@ -44,7 +44,7 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 func main() {
 	//	backup.Init()
 
-	pm := peers.NewPeerManager()
+	pm := peers.GetPeerManager()
 
 	pm.Init()
 	go pm.Run()
@@ -85,6 +85,7 @@ func main() {
 					stateToAck := ec.GetElevatorState()
 					err := pm.WaitForAck(stateToAck, config.TimeoutAck)
 					if err != nil {
+						log.Println(err)
 					} else {
 						ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
 						ec.SetCabOrders(stateToAck.PressedCabButtons)

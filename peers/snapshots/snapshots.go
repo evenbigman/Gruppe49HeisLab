@@ -3,7 +3,6 @@ package snapshots
 //TODO: Add logging
 //TODO: Add proper error handling
 //TODO: Add subscriber model to get snapshot changes of peers on a channel
-//TODO: MAke singellton
 //TODO: Prevent integer overflow on version number
 //TODO: Refactor MergeSnapshots, fix abstraction layer together with peers
 //TODO: GetORDERS which exist wwhile you havent joined
@@ -25,13 +24,21 @@ type SnapshotManager struct {
 	myID      uint64
 }
 
-func NewSnapshotManager(myID uint64) *SnapshotManager {
+var (
+	instance *SnapshotManager
+	once sync.Once
+)
+
+func GetSnapshotManager(myID uint64) *SnapshotManager {
 	sm := &SnapshotManager{
 		myID:      myID,
 		snapshots: make(map[uint64]Snapshot),
 	}
 
-	return sm
+	once.Do(func() {
+		instance = sm
+	})
+	return instance
 }
 
 // Takes incoming state, updates if necessary. Also checks if new order has come :O And returnsed lowest version they have of our state
