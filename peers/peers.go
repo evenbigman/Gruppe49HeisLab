@@ -37,7 +37,7 @@ type PeerManager struct {
 
 var (
 	instance *PeerManager
-	once sync.Once
+	once     sync.Once
 )
 
 func GetPeerManager() *PeerManager {
@@ -104,10 +104,9 @@ func (pm *PeerManager) Run() error {
 					pm.ackMutex.Unlock()
 				}
 
-				
 				var connectedIds []uint64
-				for id, status := range statuses{
-					if status.Connected{
+				for id, status := range statuses {
+					if status.Connected {
 						connectedIds = append(connectedIds, id)
 					}
 				}
@@ -115,13 +114,11 @@ func (pm *PeerManager) Run() error {
 
 				oldOrders := pm.GetOrders()
 				newOrders := pm.snapshotManager.ComputeOrders(oldSnapshots, connectedIds)
-				pm.hallOrderMutex.Lock()
 				if !hallOrdersEqual(oldOrders, newOrders) {
+					pm.hallOrderMutex.Lock()
 					pm.hallOrders = newOrders
 					pm.hallOrderMutex.Unlock()
 					pm.OrderChangeCh <- struct{}{}
-				} else {
-					pm.hallOrderMutex.Unlock()
 				}
 			}
 
@@ -220,7 +217,7 @@ func (pm *PeerManager) GetOrders() [config.NumFloors][2]bool {
 	return pm.hallOrders
 }
 
-func (pm *PeerManager) ImOnline() bool{
+func (pm *PeerManager) ImOnline() bool {
 	connectedSnapshots := pm.GetConnectedSnapshots()
 	if len(connectedSnapshots) != 0 {
 		return true
@@ -242,13 +239,13 @@ func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
 	return snapshot, nil
 }
 
-func hallOrdersEqual(a, b [config.NumFloors][2]bool) bool{
+func hallOrdersEqual(a, b [config.NumFloors][2]bool) bool {
 	for i := range a {
 		for j := range a[i] {
 			if a[i][j] != b[i][j] {
 				return false
 			}
-		}	
+		}
 	}
 	return true
 }
