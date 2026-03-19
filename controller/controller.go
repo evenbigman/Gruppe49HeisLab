@@ -59,7 +59,7 @@ type ElevatorController struct {
 	initOnce               sync.Once
 	stateChangeSubscribers []chan struct{}
 	floorSubscribers       []chan struct{}
-	buttonSubscribers      []chan struct{}
+	cabButtonSubscribers   []chan struct{}
 	hallOrderSubscriber    []chan struct{}
 	cabOrderSubscriber     []chan struct{}
 	obstructionSubscriber  []chan struct{}
@@ -140,6 +140,7 @@ func (ec *ElevatorController) SetGlobalHallOrders(confirmedHallOrders [numFloors
 	defer ec.stateLock.Unlock()
 	ec.elevator.ConfirmedHallOrders = confirmedHallOrders
 	ec.elevator.PressedHallButtons = confirmedHallOrders
+	ec.notifyState()
 	ec.notfiyHallOrders()
 }
 
@@ -173,8 +174,8 @@ func (ec *ElevatorController) SubscribeFloor() <-chan struct{} {
 	return ec.addSubscriber(&ec.floorSubscribers)
 }
 
-func (ec *ElevatorController) SubscribeButtons() <-chan struct{} {
-	return ec.addSubscriber(&ec.buttonSubscribers)
+func (ec *ElevatorController) SubscribeCabButtons() <-chan struct{} {
+	return ec.addSubscriber(&ec.cabButtonSubscribers)
 }
 
 func (ec *ElevatorController) SubscribeCabOrders() <-chan struct{} {
@@ -228,8 +229,8 @@ func (ec *ElevatorController) notifyState() { // NOTE: might be better with a no
 	ec.notify(&ec.stateChangeSubscribers)
 }
 
-func (ec *ElevatorController) notfiyButton() {
-	ec.notify(&ec.buttonSubscribers)
+func (ec *ElevatorController) notfiyCabButton() {
+	ec.notify(&ec.cabButtonSubscribers)
 }
 
 func (ec *ElevatorController) notfiyHallOrders() {
@@ -284,8 +285,8 @@ func (ec *ElevatorController) pollElevatorState() {
 				ec.elevator.PressedCabButtons[v.Floor] = true
 				ec.stateLock.Unlock()
 
+				ec.notfiyCabButton()
 			}
-			ec.notfiyButton()
 			ec.notifyState()
 
 		case v := <-floor:
@@ -464,15 +465,15 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	floor := state.CurrentFloor
 
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][up] {
+		ec.stopElevatorAtCurrentFloor()
 		ec.clearCabOrder(state.CurrentFloor)
 		ec.clearHallorder(floor, up)
-		ec.stopElevatorAtCurrentFloor()
 	}
 
 	if floor == maxFloor {
+		ec.stopElevatorAtCurrentFloor()
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
-		ec.stopElevatorAtCurrentFloor()
 	}
 
 	if ec.moreOrdersAbove() {
@@ -489,8 +490,8 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	}
 
 	if state.AssignedHallOrders[floor][down] {
-		ec.clearHallorder(floor, down)
 		ec.stopElevatorAtCurrentFloor()
+		ec.clearHallorder(floor, down)
 	}
 
 	ec.setState(Idle)
@@ -507,9 +508,9 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	}
 
 	if floor == 0 {
+		ec.stopElevatorAtCurrentFloor()
 		ec.clearHallorder(floor, up)
 		ec.clearCabOrder(state.CurrentFloor)
-		ec.stopElevatorAtCurrentFloor()
 
 	}
 
@@ -527,8 +528,8 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	}
 
 	if state.AssignedHallOrders[floor][up] {
-		ec.stopElevatorAtCurrentFloor()
 		ec.clearHallorder(floor, up)
+		ec.stopElevatorAtCurrentFloor()
 	}
 	ec.setState(Idle)
 }
@@ -754,7 +755,7 @@ func (ec *ElevatorController) clearCabOrder(floor int) {
 	ec.elevator.PressedCabButtons[floor] = false
 	ec.notfiyCabOrders()
 	ec.notifyState()
-	ec.notfiyButton()
+	ec.notfiyCabButton()
 }
 
 func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
@@ -764,7 +765,6 @@ func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
 	ec.elevator.ConfirmedHallOrders[floor][direction] = false
 	ec.elevator.PressedHallButtons[floor][direction] = false
 	ec.notfiyHallOrders()
-	ec.notfiyButton()
 	ec.notifyState()
 }
 

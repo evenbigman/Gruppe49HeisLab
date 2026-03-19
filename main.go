@@ -1,4 +1,7 @@
 package main
+//BUG: Hall orders get assigned even though offline
+//BUG: Goes through roof
+//BUG: Hall orders assigned to where you are standing from others, will not get removed when taken (on the others side)
 
 import (
 	//	backup "sanntidslab/backup_handler"
@@ -94,7 +97,7 @@ func main() {
 	myElevatorState := ec.GetElevatorState()
 	pm.SetMySnapshot(myElevatorState)
 
-	buttonCh := ec.SubscribeButtons()
+	cabButtonCh := ec.SubscribeCabButtons()
 	stateCh := ec.SubscribeState()
 
 	ec.Start()
@@ -114,7 +117,8 @@ func main() {
 			state := ec.GetElevatorState()
 			assignHallOrders(pm, ec, &state)
 
-		case <-buttonCh:
+		case <-cabButtonCh:
+			log.Println("Cab press")
 			if pm.ImOnline() {
 				go func() { //Wait for ack
 					stateToAck := ec.GetElevatorState()
@@ -122,20 +126,19 @@ func main() {
 					if err != nil {
 						log.Println(err)
 					} else {
-						ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
 						ec.SetCabOrders(stateToAck.PressedCabButtons)
-						stateToAck.ConfirmedHallOrders = stateToAck.PressedHallButtons
 						stateToAck.CabOrders = stateToAck.PressedCabButtons
 						pm.SetMySnapshot(stateToAck)
 					}
 				}()
 			} else { //Go solo
-				state := ec.GetElevatorState()
-				ec.SetCabOrders(state.PressedCabButtons)
-				state.CabOrders = state.PressedCabButtons
-				pm.SetMySnapshot(state)
-			}
+					state := ec.GetElevatorState()
+					ec.SetCabOrders(state.PressedCabButtons)
+					state.CabOrders = state.PressedCabButtons
+					pm.SetMySnapshot(state)
+				}
 		case <-stateCh:
+			//Blir knapper satt her?
 			state := ec.GetElevatorState()
 			pm.SetMySnapshot(state)
 			assignHallOrders(pm, ec, &state)
