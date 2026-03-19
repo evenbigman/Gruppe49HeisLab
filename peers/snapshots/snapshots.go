@@ -101,19 +101,25 @@ func (sm *SnapshotManager) ComputeOrders(oldSnapshots map[uint64]Snapshot, conne
 		for j := range orders[i]{
 			changed := false
 			for _, id := range connectedIds{
-				oldOrder := oldSnapshots[id].Elevator.PressedHallButtons[i][j]
+				oldSnapshot, oldSnapshotExists := oldSnapshots[id]
 				newOrder := newSnapshots[id].Elevator.PressedHallButtons[i][j]
-
-				if oldOrder != newOrder{
+				if !oldSnapshotExists {
 					changed = true
-					if newOrder{
-						orders[i][j] = true
-						break //rising edge, set order true -- move to next direction
-					} else {
-						orders[i][j] = false
+					orders[i][j] = newOrder
+				} else {
+					oldOrder := oldSnapshot.Elevator.PressedHallButtons[i][j]
+
+					if oldOrder != newOrder{
+						changed = true
+						if newOrder{
+							orders[i][j] = true
+							break //rising edge, set order true -- move to next direction
+						} else {
+							orders[i][j] = false
+						}
+					} else if newOrder == true && changed == false{
+						orders[i][j] = true	
 					}
-				} else if newOrder == true && changed == false{
-					orders[i][j] = true	
 				}
 			}
 		}
