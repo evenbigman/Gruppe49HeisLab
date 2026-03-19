@@ -54,7 +54,7 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 	log.Println(connectedSnapshots)
 
 	elevatorsSnapshot := hallrequestassigner.ElevatorsSnapshot{
-		HallCalls: state.PressedHallButtons,
+		HallCalls: state.ConfirmedHallOrders,
 		Snapshot:  allSnapshots,
 	}
 
