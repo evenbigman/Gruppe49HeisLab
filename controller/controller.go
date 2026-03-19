@@ -540,6 +540,11 @@ func (ec *ElevatorController) handleNewCabOrder() {
 	headingUp := (state.State == MovingUp) || (state.State == DoorOpenHeadingUp)
 	headingDown := (state.State == MovingDown) || (state.State == DoorOpenHeadingDown)
 
+	if !moving && state.CabOrders[state.CurrentFloor] {
+		ec.clearCabOrder(state.CurrentFloor)
+		ec.stopElevatorAtCurrentFloor()
+	}
+
 	if moving {
 		return
 	}
