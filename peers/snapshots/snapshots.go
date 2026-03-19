@@ -6,6 +6,7 @@ package snapshots
 //TODO: Prevent integer overflow on version number
 //TODO: Refactor MergeSnapshots, fix abstraction layer together with peers
 //TODO: GetORDERS which exist wwhile you havent joined
+//TODO: Make deepcopy for functions which export snapshots
 
 import (
 	//"log"

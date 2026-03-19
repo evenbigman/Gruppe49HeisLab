@@ -41,7 +41,7 @@ var (
 )
 
 func GetPeerManager() *PeerManager {
-	myID := getMyID()
+	myID := GetMyID()
 	pm := &PeerManager{
 		OrderChangeCh:      make(chan struct{}),
 		DisconnectedPeerCh: make(chan struct{}),
@@ -72,7 +72,7 @@ func (pm *PeerManager) Init() {
 
 func (pm *PeerManager) Run() error {
 	if !pm.initialized {
-		log.Printf("ID: %d", getMyID())
+		log.Printf("ID: %d", GetMyID())
 		return fmt.Errorf("Init() must be called before Run()")
 	}
 	ticker := time.NewTicker(config.BcastInterval)
@@ -174,14 +174,14 @@ func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot, error) {
 	return snapshot, err
 }
 
-func (pm *PeerManager) GetConnectedSnapshots() []snapshots.Snapshot {
+func (pm *PeerManager) GetConnectedSnapshots() map[uint64]snapshots.Snapshot {
 	statuses := pm.statusManager.GetStatuses()
 	snaps := pm.snapshotManager.GetSnapshots()
 
-	output := make([]snapshots.Snapshot, 0, len(statuses))
+	output := make(map[uint64]snapshots.Snapshot)
 	for id, status := range statuses {
 		if status.Connected {
-			output = append(output, snaps[id])
+			output[id] = snaps[id]
 		}
 	}
 	return output
@@ -241,7 +241,7 @@ func hallOrdersEqual(a, b [config.NumFloors][2]bool) bool{
 	return true
 }
 
-func getMyID() uint64 { //Get mac address
+func GetMyID() uint64 { //Get mac address
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
