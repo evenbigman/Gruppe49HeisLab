@@ -110,9 +110,9 @@ func (pm *PeerManager) Run() error {
 				for id, status := range statuses{
 					if status.Connected{
 						connectedIds = append(connectedIds, id)
-						connectedIds = append(connectedIds, pm.myID)
 					}
 				}
+				connectedIds = append(connectedIds, pm.myID)
 
 				oldOrders := pm.GetOrders()
 				newOrders := pm.snapshotManager.ComputeOrders(oldSnapshots, connectedIds)
