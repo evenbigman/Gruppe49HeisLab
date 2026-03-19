@@ -2,35 +2,41 @@ package main
 
 import (
 	//	backup "sanntidslab/backup_handler"
-	"encoding/json"
+
 	"log"
 	"sanntidslab/config"
 	"sanntidslab/controller"
+	hallrequestassigner "sanntidslab/hall_request_assigner"
 	"sanntidslab/peers"
+	"sanntidslab/peers/snapshots"
 )
 
 func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
+	mySnapshot, _ := pm.GetMySnapshot()
+	connectedSnapshots := pm.GetConnectedSnapshots()
 
-	var myOrders [config.NumFloors][2]bool
-	for i := range myOrders {
-		for j := range myOrders[i] {
-			myOrders[i][j] = state.ConfirmedHallOrders[i][j] || state.PressedHallButtons[i][j]
-		}
+	allSnapshots := make([]snapshots.Snapshot, 0, 1+len(connectedSnapshots))
+	allSnapshots = append(allSnapshots, mySnapshot)
+	allSnapshots = append(allSnapshots, connectedSnapshots...)
+
+	log.Println("My elevator: ")
+	log.Println(mySnapshot)
+
+	log.Println("Connected elevators: ")
+	log.Println(connectedSnapshots)
+
+	elevatorsSnapshot := hallrequestassigner.ElevatorsSnapshot{
+		HallCalls: state.PressedHallButtons,
+		Snapshot:  allSnapshots,
 	}
 
-	peerOrders := pm.GetOrders()
-
-	combinedOrders := [config.NumFloors][2]bool{}
-	for i := range combinedOrders {
-		for j := range combinedOrders[i] {
-			combinedOrders[i][j] = myOrders[i][j] || peerOrders[i][j]
-		}
+	hallAssignments, err := hallrequestassigner.AssignHallRequests(elevatorsSnapshot)
+	if err != nil {
+		log.Printf("error assigning hall requests: %v", err)
+		panic("could not get hall assignments")
 	}
 
-	ec.SetGlobalHallOrders(combinedOrders)
-
-	b, _ := json.Marshal(combinedOrders)
-	log.Printf("Assigned hall orders: %s", string(b))
+	myOrders := hallAssignments["id_1"]
 
 	ec.AssignHallOrders(myOrders)
 }
@@ -66,10 +72,6 @@ func main() {
 		//log.Println("My snappshot:", snapshot.Elevator.ConfirmedHallOrders)
 		select {
 		case <-pm.OrderChangeCh:
-			orders := pm.GetOrders()
-			b, _ := json.Marshal(orders)
-			log.Printf("Orders: %s", string(b))
-			ec.SetGlobalHallOrders(orders)
 			state := ec.GetElevatorState()
 			assignHallOrders(pm, ec, &state)
 

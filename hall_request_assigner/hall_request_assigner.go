@@ -20,6 +20,23 @@ type HallAssignments map[string][config.NumFloors][2]bool
 // Public functions
 
 func AssignHallRequests(snapshot ElevatorsSnapshot) (HallAssignments, error) {
+	for i := range snapshot.Snapshot {
+		elevator := snapshot.Snapshot[i].Elevator
+
+		atBottomFloor := elevator.CurrentFloor == 0
+		atTopFloor := elevator.CurrentFloor == config.MaxFloor
+
+		if atBottomFloor && (elevator.State == controller.MovingDown || elevator.State == controller.DoorOpenHeadingDown) {
+			elevator.State = controller.Idle
+		}
+
+		if atTopFloor && (elevator.State == controller.MovingUp || elevator.State == controller.DoorOpenHeadingUp) {
+			elevator.State = controller.Idle
+		}
+
+		snapshot.Snapshot[i].Elevator = elevator
+	}
+
 	snapshotJSON, err := snapshotToJSON(snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal elevator state: %w", err)
@@ -64,9 +81,9 @@ func statusToString(status controller.ElevatorState) (string, error) {
 
 func directionToString(state controller.ElevatorState) (string, error) {
 	switch state {
-	case controller.MovingUp:
+	case controller.MovingUp, controller.DoorOpenHeadingUp:
 		return "up", nil
-	case controller.MovingDown:
+	case controller.MovingDown, controller.DoorOpenHeadingDown:
 		return "down", nil
 	case controller.Idle, controller.DoorOpenIdle:
 		return "stop", nil
