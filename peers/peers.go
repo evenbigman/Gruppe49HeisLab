@@ -104,7 +104,6 @@ func (pm *PeerManager) Run() error {
 					pm.ackMutex.Unlock()
 				}
 
-				pm.hallOrderMutex.Lock()
 				
 				var connectedIds []uint64
 				for id, status := range statuses{
@@ -117,6 +116,7 @@ func (pm *PeerManager) Run() error {
 				oldOrders := pm.GetOrders()
 				newOrders := pm.snapshotManager.ComputeOrders(oldSnapshots, connectedIds)
 				if !hallOrdersEqual(oldOrders, newOrders) {
+					pm.hallOrderMutex.Lock()
 					pm.hallOrders = newOrders
 					pm.hallOrderMutex.Unlock()
 					pm.OrderChangeCh <- struct{}{}
