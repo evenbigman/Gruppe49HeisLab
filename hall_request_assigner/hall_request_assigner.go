@@ -42,7 +42,7 @@ func AssignHallRequests(snapshot ElevatorsSnapshot) (HallAssignments, error) {
 		return nil, fmt.Errorf("failed to marshal elevator state: %w", err)
 	}
 
-	cmd := exec.Command("./hall_request_assigner", "--input", string(snapshotJSON))
+	cmd := exec.Command("./hall_request_assigner_script", "--input", string(snapshotJSON))
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
