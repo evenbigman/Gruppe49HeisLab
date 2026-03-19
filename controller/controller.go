@@ -700,7 +700,6 @@ func (ec *ElevatorController) stopElevatorAtCurrentFloor() error {
 }
 
 func (ec *ElevatorController) stopElevator() {
-	ec.setState(MovingUp)
 	elevio.SetMotorDirection(elevio.MD_Stop)
 }
 
@@ -710,6 +709,7 @@ func (ec *ElevatorController) elevatorDriveUp() {
 }
 
 func (ec *ElevatorController) elevatorDriveDown() {
+	ec.setState(MovingDown)
 	elevio.SetMotorDirection(elevio.MD_Down)
 }
 
