@@ -17,7 +17,6 @@ import (
 )
 
 func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
-	return
 	mySnapshot, _ := pm.GetMySnapshot()
 	connectedSnapshots := pm.GetConnectedSnapshots()
 	myID := peers.GetMyID()
