@@ -107,11 +107,18 @@ func (pm *PeerManager) Run() error {
 				newSnapshots := msg.Snapshots
 				var connectedIds []uint64
 				for id, status := range statuses {
-					versionChanged :=  newSnapshots[id].Version > oldSnapshots[id].Version
-					if status.Connected  && versionChanged{
+					oldSnapshot, oldSnapshotExists := oldSnapshots[id]
+					newSnapshot := newSnapshots[id]
+					if !oldSnapshotExists{
 						connectedIds = append(connectedIds, id)
+					} else{
+						versionChanged :=  newSnapshot.Version > oldSnapshot.Version
+						if status.Connected  && versionChanged{
+							connectedIds = append(connectedIds, id)
+						}
 					}
 				}
+
 				myVersionChanged := msg.Snapshots[pm.myID].Version > oldSnapshots[pm.myID].Version
 				if myVersionChanged {
 					connectedIds = append(connectedIds, pm.myID)
