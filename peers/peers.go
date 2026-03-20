@@ -213,16 +213,16 @@ func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Dur
 	}
 }
 
-func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot, error) {
+func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot_t, error) {
 	snapshot, err := pm.getSnapshot(pm.myID)
 	return snapshot, err
 }
 
-func (pm *PeerManager) GetConnectedSnapshots() map[uint64]snapshots.Snapshot {
+func (pm *PeerManager) GetConnectedSnapshots() map[uint64]snapshots.Snapshot_t {
 	statuses := pm.statusManager.GetStatuses()
 	snaps := pm.snapshotManager.GetSnapshots()
 
-	output := make(map[uint64]snapshots.Snapshot)
+	output := make(map[uint64]snapshots.Snapshot_t)
 	for id, status := range statuses {
 		if status.Connected {
 			output[id] = snaps[id]
@@ -293,20 +293,20 @@ func (pm *PeerManager) ImOnline() bool {
 	}
 }
 
-func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
+func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot_t, error) {
 	sm := pm.snapshotManager
 	snaps := sm.GetSnapshots()
 
 	snapshot, ok := snaps[ID]
 	if !ok {
 		err := fmt.Errorf("Snapshot for ID: %d not found", ID)
-		return snapshots.Snapshot{}, err
+		return snapshots.Snapshot_t{}, err
 	}
 
 	return snapshot, nil
 }
 
-func UnconfirmedOrderExists(snapshot snapshots.Snapshot) bool{
+func UnconfirmedOrderExists(snapshot snapshots.Snapshot_t) bool{
 	confirmedOrders := snapshot.Elevator.ConfirmedHallOrders
 	hallButtons := snapshot.Elevator.PressedHallButtons
 

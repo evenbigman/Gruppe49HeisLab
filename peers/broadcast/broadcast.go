@@ -14,7 +14,7 @@ const bufferSize = 1024
 
 type Msg struct {
 	Sender    uint64
-	Snapshots map[uint64]snapshots.Snapshot
+	Snapshots map[uint64]snapshots.Snapshot_t
 }
 
 func Receiver(port int, rx chan Msg) {

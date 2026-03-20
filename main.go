@@ -25,7 +25,7 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 	connectedSnapshots := pm.GetConnectedSnapshots()
 	myID := peers.GetMyID()
 
-	snapshotByID := make(map[uint64]snapshots.Snapshot, len(connectedSnapshots)+1)
+	snapshotByID := make(map[uint64]snapshots.Snapshot_t, len(connectedSnapshots)+1)
 	snapshotByID[myID] = mySnapshot
 	for id, snapshot := range connectedSnapshots {
 		if snapshot.Elevator.State != controller.Obstructed {
@@ -51,7 +51,7 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 		return
 	}
 
-	allSnapshots := make([]snapshots.Snapshot, 0, len(ids))
+	allSnapshots := make([]snapshots.Snapshot_t, 0, len(ids))
 	for _, id := range ids {
 		allSnapshots = append(allSnapshots, snapshotByID[id])
 	}
