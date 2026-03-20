@@ -104,7 +104,6 @@ func (pm *PeerManager) Run() error {
 				}
 
 				connectedPeers := 0
-				changed := false
 				var mutualUnconfirmedOrders [config.NumFloors][2]int
 				for id, snapshot := range msg.Snapshots{
 					s, err := pm.GetStatus(id)
@@ -112,15 +111,11 @@ func (pm *PeerManager) Run() error {
 						continue
 					}
 					if s.Connected || id == pm.myID{
-						confirmedHallOrders := snapshot.Elevator.ConfirmedHallOrders
-						pressedHallButtons := snapshot.Elevator.PressedHallButtons
 						connectedPeers++
-						unconfirmedOrderExists, unconfirmedOrderIndex,
-						unconfirmedOrder := orderMatrixFirstDiff(confirmedHallOrders, pressedHallButtons)
-						if unconfirmedOrderExists {
+						if UnconfirmedOrderExists(snapshot) {
 							newOrders := snapshot.Elevator.PressedHallButtons
-							newOrders[unconfirmedOrderIndex[0]][unconfirmedOrderIndex[1]] = unconfirmedOrder
 							pm.SetUnconfirmedOrders(newOrders)
+							pm.UnconfirmedOrderChangeCh <- struct{}{}
 						}
 						for i := range mutualUnconfirmedOrders{
 							for j := range mutualUnconfirmedOrders[i]{
@@ -132,9 +127,6 @@ func (pm *PeerManager) Run() error {
 							}
 						}
 					}
-				}
-				if changed {
-					pm.UnconfirmedOrderChangeCh <- struct{}{}
 				}
 
 				var confirmedOrders [config.NumFloors][2]bool
@@ -310,20 +302,15 @@ func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
 	return snapshot, nil
 }
 
-func orderMatrixFirstDiff(firstMatrix, lastMatrix [config.NumFloors][2]bool) (changed bool, index [2]int, newValue bool){
-	changed = false
-	for i := range firstMatrix{
-		for j := range lastMatrix[i]{
-			if firstMatrix[i][j] != lastMatrix[i][j]{
-				changed = true
-				index[0] = i
-				index[1] = j
-				newValue = lastMatrix[i][j]
-				return
-			}
-		}
+func UnconfirmedOrderExists(snapshot snapshots.Snapshot) bool{
+	confirmedOrders := snapshot.Elevator.ConfirmedHallOrders
+	hallButtons := snapshot.Elevator.PressedHallButtons
+
+	if !orderMatrixEqual(hallButtons, confirmedOrders){
+		return true
+	} else {
+		return false
 	}
-	return
 }
 
 func orderMatrixEqual(a, b [config.NumFloors][2]bool) bool {
