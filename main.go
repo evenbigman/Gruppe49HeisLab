@@ -52,7 +52,14 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 		convertedOrders[i] = order
 	}
 
-	ec.AssignHallOrders(convertedOrders)
+	var filteredOrders [config.NumFloors][2]bool
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for dir := 0; dir < 2; dir++ {
+			filteredOrders[floor][dir] = convertedOrders[floor][dir] && state.PressedHallButtons[floor][dir]
+		}
+	}
+
+	ec.AssignHallOrders(filteredOrders)
 }
 
 func main() {
