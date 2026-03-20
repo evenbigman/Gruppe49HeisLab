@@ -27,7 +27,7 @@ const (
 	doorOpenTime   = config.DoorOpenTime
 	defaultPort    = config.DefaultElevioPort
 	undefined      = -1
-	motorTimeout   = 10 * time.Second
+	motorTimeout   = 4 * time.Second
 	motorRetryTime = 2 * time.Second
 )
 
