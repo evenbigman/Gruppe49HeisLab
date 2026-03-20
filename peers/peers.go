@@ -136,14 +136,15 @@ func (pm *PeerManager) Run() error {
 
 				for i := range confirmedOrders{
 					for j := range confirmedOrders[i]{
-						log.Printf("Connected peers: %d:" ,connectedPeers)
-						switch mutualUnconfirmedOrders[i][j] {
-						case connectedPeers:
-							confirmedOrders[i][j] = true
-						case -connectedPeers:
-							confirmedOrders[i][j] = false
-						default:
-							confirmedOrders[i][j] = savedConfirmedOrders[i][j]
+						if connectedPeers != 0{
+							switch mutualUnconfirmedOrders[i][j] {
+							case connectedPeers:
+								confirmedOrders[i][j] = true
+							case -connectedPeers:
+								confirmedOrders[i][j] = false
+							default:
+								confirmedOrders[i][j] = savedConfirmedOrders[i][j]
+							}
 						}
 					}
 				}
