@@ -11,11 +11,11 @@ import (
 )
 
 type ElevatorsSnapshot struct {
-	HallCalls [config.NumFloors][2]bool
-	Snapshot  []snapshots.Snapshot_t
+	HallCalls controller.HallOrders_t
+	Snapshot  []snapshots.Snapshot
 }
 
-type HallAssignments map[string][config.NumFloors][2]bool
+type HallAssignments map[string]controller.HallOrders_t
 
 // Public functions
 
@@ -66,7 +66,7 @@ func AssignHallRequests(snapshot ElevatorsSnapshot) (HallAssignments, error) {
 
 // Private functions
 
-func statusToString(status controller.ElevatorState) (string, error) {
+func statusToString(status controller.ElevatorState_t) (string, error) {
 	switch status {
 	case controller.Idle:
 		return "idle", nil
@@ -79,7 +79,7 @@ func statusToString(status controller.ElevatorState) (string, error) {
 	}
 }
 
-func directionToString(state controller.ElevatorState) (string, error) {
+func directionToString(state controller.ElevatorState_t) (string, error) {
 	switch state {
 	case controller.MovingUp, controller.DoorOpenHeadingUp:
 		return "up", nil

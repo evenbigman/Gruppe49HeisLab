@@ -38,13 +38,13 @@ const (
 	down
 )
 
-type HallOrders [numFloors][2]bool
-type CabOrders [numFloors]bool
+type HallOrders_t [numFloors][2]bool
+type CabOrders_t [numFloors]bool
 
-type ElevatorState int
+type ElevatorState_t int
 
 const (
-	Idle ElevatorState = iota
+	Idle ElevatorState_t = iota
 	MovingUp
 	MovingDown
 	DoorOpenHeadingUp
@@ -56,12 +56,12 @@ const (
 
 type Elevator struct {
 	CurrentFloor        int
-	AssignedHallOrders  HallOrders
-	ConfirmedHallOrders HallOrders
-	CabOrders           CabOrders
-	State               ElevatorState
-	PressedHallButtons  HallOrders
-	PressedCabButtons   CabOrders
+	AssignedHallOrders  HallOrders_t
+	ConfirmedHallOrders HallOrders_t
+	CabOrders           CabOrders_t
+	State               ElevatorState_t
+	PressedHallButtons  HallOrders_t
+	PressedCabButtons   CabOrders_t
 }
 
 type ElevatorController struct {
@@ -156,7 +156,7 @@ func (ec *ElevatorController) InitElevatorWithStates(elevator Elevator, port ...
 	ec.InitElevator(p)
 }
 
-func (ec *ElevatorController) SetGlobalHallOrders(confirmedHallOrders [numFloors][2]bool) {
+func (ec *ElevatorController) SetGlobalHallOrders(confirmedHallOrders HallOrders_t) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.ConfirmedHallOrders = confirmedHallOrders
@@ -170,7 +170,7 @@ func (ec *ElevatorController) SetConfirmedHallOrderAtFloor(floor int, direction 
 	ec.elevator.ConfirmedHallOrders[floor][direction] = value
 }
 
-func (ec *ElevatorController) SetPressedHallButtons(pressedButtons HallOrders) {
+func (ec *ElevatorController) SetPressedHallButtons(pressedButtons HallOrders_t) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.PressedHallButtons = pressedButtons
@@ -183,7 +183,7 @@ func (ec *ElevatorController) SetPressedHallButtonAtFloor(floor int, direction d
 	ec.elevator.PressedHallButtons[floor][direction] = value
 }
 
-func (ec *ElevatorController) AssignHallOrders(assignedHallOrders [numFloors][2]bool) {
+func (ec *ElevatorController) AssignHallOrders(assignedHallOrders HallOrders_t) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.AssignedHallOrders = assignedHallOrders
@@ -191,7 +191,7 @@ func (ec *ElevatorController) AssignHallOrders(assignedHallOrders [numFloors][2]
 
 }
 
-func (ec *ElevatorController) SetCabOrders(confirmedCabOrders [numFloors]bool) {
+func (ec *ElevatorController) SetCabOrders(confirmedCabOrders CabOrders_t) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.CabOrders = confirmedCabOrders
@@ -357,7 +357,7 @@ func (ec *ElevatorController) pollElevatorState() {
 	}
 }
 
-func (ec *ElevatorController) setState(state ElevatorState) {
+func (ec *ElevatorController) setState(state ElevatorState_t) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.State = state
@@ -902,7 +902,7 @@ retry:
 	}
 }
 
-func (es ElevatorState) String() string {
+func (es ElevatorState_t) String() string {
 	switch es {
 	case Idle:
 		return "Idle"
@@ -926,7 +926,7 @@ func (es ElevatorState) String() string {
 
 }
 
-func (hallOrder HallOrders) String() string {
+func (hallOrder HallOrders_t) String() string {
 	var str strings.Builder
 	for floor, orders := range hallOrder {
 		fmt.Fprintf(&str, "Hall orders for floor %d are: %v \n", floor, orders)
@@ -934,7 +934,7 @@ func (hallOrder HallOrders) String() string {
 	return str.String()
 }
 
-func (cabOrders CabOrders) String() string {
+func (cabOrders CabOrders_t) String() string {
 	var str strings.Builder
 	for floor, orders := range cabOrders {
 		fmt.Fprintf(&str, "Cab order for floor %d is: %v \n", floor, orders)
