@@ -107,10 +107,10 @@ func (pm *PeerManager) Run() error {
 				var mutualUnconfirmedOrders [config.NumFloors][2]int
 				for id, snapshot := range msg.Snapshots{
 					s, err := pm.GetStatus(id)
-					if err != nil {
+					if err != nil && id != pm.myID{
 						continue
 					}
-					if s.Connected {
+					if s.Connected || id == pm.myID{
 						connectedPeers++
 						if UnconfirmedOrderExists(snapshot) {
 							pm.SetUnconfirmedOrders(snapshot.Elevator.PressedHallButtons)
