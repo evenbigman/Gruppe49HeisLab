@@ -9,6 +9,17 @@ import (
 	"time"
 )
 
+/********************************************************************************
+*************************     Elevator Controller       *************************
+
+This module contains the control of the local elevator, and serves as an
+abstraction between the elevator driver provided on the course github.
+It should register button-events, arrival at floor, handling of assigned and
+confirmed orders as well as stopping both when the elevaotr motor malfunctions
+and when the door is obstructed from closing.
+
+********************************************************************************/
+
 const (
 	//some constants used for the elevators to avoid magic numbers
 	numFloors      = config.NumFloors
@@ -71,7 +82,15 @@ var (
 	instanceOnce sync.Once
 )
 
-// Public funcitons
+/*
+*******************************************************************************
+**********************       Public functions       *****************************
+
+The following functions are the ones that are used by external modules to either
+run the elevator, or to set orders according to signaling from the other elevators
+
+*******************************************************************************
+*/
 func GetController() *ElevatorController {
 	instanceOnce.Do(func() {
 		instance = &ElevatorController{
@@ -85,6 +104,7 @@ func GetController() *ElevatorController {
 }
 
 func (ec *ElevatorController) Start() error {
+
 	if instance == nil {
 		return fmt.Errorf("Error, not initialized. Call InitElevator, or InitElevatorWithConfig first")
 	}
@@ -95,6 +115,7 @@ func (ec *ElevatorController) Start() error {
 }
 
 func (ec *ElevatorController) InitElevator(port ...string) {
+
 	ec.initOnce.Do(func() {
 		p := defaultPort
 		if len(port) > 0 {
@@ -105,7 +126,7 @@ func (ec *ElevatorController) InitElevator(port ...string) {
 
 		go ec.pollElevatorState()
 		floorch := ec.SubscribeFloor()
-		defer ec.UnsubscribeFloor(floorch) // NOTE: Hacky
+		defer ec.UnsubscribeFloor(floorch)
 
 		ec.stateLock.Lock()
 		ec.elevator.CurrentFloor = elevio.GetFloor()
@@ -116,7 +137,7 @@ func (ec *ElevatorController) InitElevator(port ...string) {
 			ec.closeDoor()
 			ec.elevatorDriveDown()
 			ec.setState(MovingDown)
-			for range floorch { // NOTE: Hacky
+			for range floorch {
 				break
 			}
 			ec.stopElevator()
@@ -140,7 +161,7 @@ func (ec *ElevatorController) SetGlobalHallOrders(confirmedHallOrders [numFloors
 	defer ec.stateLock.Unlock()
 	ec.elevator.PressedHallButtons = confirmedHallOrders
 	ec.notifyState()
-	ec.notfiyHallOrders()
+	ec.notifyHallOrders()
 }
 
 func (ec *ElevatorController) SetPressedHallButtons(pressedButtons HallOrders) {
@@ -154,7 +175,7 @@ func (ec *ElevatorController) AssignHallOrders(assignedHallOrders [numFloors][2]
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.AssignedHallOrders = assignedHallOrders
-	ec.notfiyHallOrders()
+	ec.notifyHallOrders()
 
 }
 
@@ -162,7 +183,7 @@ func (ec *ElevatorController) SetCabOrders(confirmedCabOrders [numFloors]bool) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.CabOrders = confirmedCabOrders
-	ec.notfiyCabOrders()
+	ec.notifyCabOrders()
 }
 
 func (ec *ElevatorController) GetElevatorState() Elevator {
@@ -171,6 +192,18 @@ func (ec *ElevatorController) GetElevatorState() Elevator {
 	defer ec.stateLock.RUnlock()
 	return ec.elevator
 }
+
+/********************************************************************************
+******************        Subscribe and notify        ***************************
+
+The foloowing few functions (names with subscribe and notify) are used for
+signaling between goroutines. If a routine needs to know about an event,
+it can use the relevant subscribe function, which lets the subscribe-function to
+get notified when the relevant event happens in the controller.
+When the elevator changes something, it will signal that the event happened to
+the relevant subscribers with the notify-functions.
+
+********************************************************************************/
 
 func (ec *ElevatorController) SubscribeState() <-chan struct{} { // NOTE: might be better with a subscirbe elevator as name, as it is inteded to be used when the elevator in general gets an update
 	return ec.addSubscriber(&ec.stateChangeSubscribers)
@@ -235,15 +268,15 @@ func (ec *ElevatorController) notifyState() { // NOTE: might be better with a no
 	ec.notify(&ec.stateChangeSubscribers)
 }
 
-func (ec *ElevatorController) notfiyCabButton() {
+func (ec *ElevatorController) notifyCabButton() {
 	ec.notify(&ec.cabButtonSubscribers)
 }
 
-func (ec *ElevatorController) notfiyHallOrders() {
+func (ec *ElevatorController) notifyHallOrders() {
 	ec.notify(&ec.hallOrderSubscriber)
 }
 
-func (ec *ElevatorController) notfiyCabOrders() {
+func (ec *ElevatorController) notifyCabOrders() {
 	ec.notify(&ec.cabOrderSubscriber)
 }
 
@@ -263,6 +296,8 @@ func (ec *ElevatorController) notify(subscribers *[]chan struct{}) {
 }
 
 func (ec *ElevatorController) pollElevatorState() {
+	/* Polling the elevator state, and updates the appropriate vairables for the local
+	 * elevator, as well as signaling the relevant channels*/
 
 	floor := make(chan int)
 	buttons := make(chan elevio.ButtonEvent)
@@ -291,7 +326,7 @@ func (ec *ElevatorController) pollElevatorState() {
 				ec.elevator.PressedCabButtons[v.Floor] = true
 				ec.stateLock.Unlock()
 
-				ec.notfiyCabButton()
+				ec.notifyCabButton()
 			}
 			ec.notifyState()
 
@@ -333,7 +368,7 @@ func (ec *ElevatorController) completeWaitingOrders() {
 			case MovingDown:
 				ec.handleArrivalAtFloorGoingDown()
 			default:
-				ec.stopElevatorAtCurrentFloor()
+				ec.openAndCloseDoorAtcurrentFloor()
 			}
 
 		case <-cabOrderCh:
@@ -473,9 +508,10 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][up] {
 		ec.stopElevator()
 		time.Sleep(500 * time.Millisecond)
+		// this delay had to be implemented to compensate for too fast clearing of orders, which created an inconsistent state
 		ec.clearCabOrder(state.CurrentFloor)
 		ec.clearHallorder(floor, up)
-		ec.stopElevatorAtCurrentFloor()
+		ec.openAndCloseDoorAtcurrentFloor()
 	}
 
 	if floor == maxFloor {
@@ -483,7 +519,7 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 		time.Sleep(500 * time.Millisecond)
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
-		ec.stopElevatorAtCurrentFloor()
+		ec.openAndCloseDoorAtcurrentFloor()
 	}
 
 	if ec.moreOrdersAbove() {
@@ -494,13 +530,13 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 
 	if ec.moreOrdersBelow() {
 		ec.setState(MovingDown)
-		ec.stopElevatorAtCurrentFloor()
+		ec.openAndCloseDoorAtcurrentFloor()
 		ec.elevatorDriveDown()
 		return
 	}
 
 	if state.AssignedHallOrders[floor][down] {
-		ec.stopElevatorAtCurrentFloor()
+		ec.openAndCloseDoorAtcurrentFloor()
 		ec.clearHallorder(floor, down)
 	}
 
@@ -516,7 +552,7 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 		time.Sleep(500 * time.Millisecond)
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
-		ec.stopElevatorAtCurrentFloor()
+		ec.openAndCloseDoorAtcurrentFloor()
 	}
 
 	if floor == 0 {
@@ -524,7 +560,7 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 		time.Sleep(500 * time.Millisecond)
 		ec.clearHallorder(floor, up)
 		ec.clearCabOrder(state.CurrentFloor)
-		ec.stopElevatorAtCurrentFloor()
+		ec.openAndCloseDoorAtcurrentFloor()
 
 	}
 
@@ -536,14 +572,14 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 
 	if ec.moreOrdersAbove() {
 		ec.setState(MovingUp)
-		ec.stopElevatorAtCurrentFloor()
+		ec.openAndCloseDoorAtcurrentFloor()
 		ec.elevatorDriveUp()
 		return
 	}
 
 	if state.AssignedHallOrders[floor][up] {
 		ec.clearHallorder(floor, up)
-		ec.stopElevatorAtCurrentFloor()
+		ec.openAndCloseDoorAtcurrentFloor()
 	}
 	ec.setState(Idle)
 }
@@ -557,13 +593,13 @@ func (ec *ElevatorController) handleNewCabOrder() {
 	headingUp := (state.State == MovingUp) || (state.State == DoorOpenHeadingUp)
 	headingDown := (state.State == MovingDown) || (state.State == DoorOpenHeadingDown)
 
-	if !moving && state.CabOrders[state.CurrentFloor] {
-		ec.clearCabOrder(state.CurrentFloor)
-		ec.stopElevatorAtCurrentFloor()
-	}
-
 	if moving {
 		return
+	}
+
+	if !moving && state.CabOrders[state.CurrentFloor] {
+		ec.clearCabOrder(state.CurrentFloor)
+		ec.openAndCloseDoorAtcurrentFloor()
 	}
 
 	//continue in the direction of travel if there are more cab orders in that direction
@@ -667,6 +703,31 @@ func (ec *ElevatorController) closeDoor() {
 	obstrucitonCh := ec.SubscribeObstruction()
 	defer ec.UnsubscribeObstruction(obstrucitonCh)
 
+	//potential new solution to obstructions:
+	/*
+		closeDoorTimer := time.NewTimer(doorOpenTime)
+		for {
+			select{
+			case <-closeDoorTimer.C:
+			if elevio.GetObstruction {
+				closeDoorTimer.Reset(doorOpenTime)
+				ec.setState(Obstructed)
+			} else {
+				elevio.SetDoorOpenLamp(false)
+				ec.setState(savedState.State)
+				return
+			}
+			default:
+			if elevio.GetObstruction {
+				ec.setState(Obstructed)
+				closeDoorTimer.Reset(doorOpenTime)
+
+			}
+
+			}
+		}
+	*/
+
 	if elevio.GetObstruction() {
 		ec.setState(Obstructed)
 		for range obstrucitonCh {
@@ -681,7 +742,7 @@ func (ec *ElevatorController) closeDoor() {
 
 }
 
-func (ec *ElevatorController) stopElevatorAtCurrentFloor() error {
+func (ec *ElevatorController) openAndCloseDoorAtcurrentFloor() error {
 	state := ec.GetElevatorState()
 	ec.stopElevator()
 	err := ec.openDoor()
@@ -738,18 +799,9 @@ func (ec *ElevatorController) handleLights() {
 		case <-cabOrderCh:
 			ec.handleCabLights()
 		case <-hallOrderCh:
-			state := ec.GetElevatorState()
-			for floor, orders := range state.ConfirmedHallOrders {
-				elevio.SetButtonLamp(elevio.BT_HallUp, floor, orders[up])
-				elevio.SetButtonLamp(elevio.BT_HallDown, floor, orders[down])
-			}
+			ec.handleHallLights()
 		case <-tickerUpdate.C:
-			state := ec.GetElevatorState()
-			for floor, orders := range state.ConfirmedHallOrders {
-				elevio.SetButtonLamp(elevio.BT_HallUp, floor, orders[up])
-				elevio.SetButtonLamp(elevio.BT_HallDown, floor, orders[down])
-
-			}
+			ec.handleHallLights()
 			ec.handleCabLights()
 		}
 	}
@@ -779,7 +831,7 @@ func (ec *ElevatorController) clearCabOrder(floor int) {
 	defer ec.stateLock.Unlock()
 	ec.elevator.CabOrders[floor] = false
 	ec.elevator.PressedCabButtons[floor] = false
-	ec.notfiyCabOrders()
+	ec.notifyCabOrders()
 	ec.notifyState()
 }
 
@@ -788,7 +840,7 @@ func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
 	defer ec.stateLock.Unlock()
 	ec.elevator.AssignedHallOrders[floor][direction] = false
 	ec.elevator.PressedHallButtons[floor][direction] = false
-	ec.notfiyHallOrders()
+	ec.notifyHallOrders()
 	ec.notifyState()
 }
 
