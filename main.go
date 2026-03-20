@@ -1,12 +1,6 @@
 package main
-
-//BUG: Hall orders get assigned even though offline
-//BUG: Goes through roof
-//BUG: Hall orders assigned to where you are standing from others, will not get removed when taken (on the others side)
-
 import (
 	//	backup "sanntidslab/backup_handler"
-
 	"fmt"
 	"log"
 	"maps"
@@ -16,6 +10,77 @@ import (
 	"sanntidslab/peers"
 	"sanntidslab/peers/snapshots"
 )
+func main() {
+	//	backup.Init()
+
+	pm := peers.GetPeerManager()
+
+	pm.Init()
+	go pm.Run()
+
+	ec := controller.GetController()
+	startState, err := pm.WaitForStartSnapshot()
+
+	if err == nil {
+		ec.InitElevatorWithStates(startState)
+	} else {
+		log.Println("Started fresh elevator")
+		ec.InitElevator()
+	}
+	myElevatorState := ec.GetElevatorValues()
+	pm.SetMySnapshot(myElevatorState)
+
+	cabButtonCh := ec.SubscribeCabButtons()
+	stateCh := ec.SubscribeElevator()
+
+	ec.Start()
+	log.Println("Started elevator controller")
+
+	for {
+		select {
+		case <-pm.UnconfirmedOrderChangeCh: //someone presses a hall button
+			orders := pm.GetUnconfirmedOrders()
+			ec.SetPressedHallButtons(orders)
+			state := ec.GetElevatorValues()
+			mustAssignHallOrders(pm, ec, state)
+
+		case <-pm.ConfirmedOrderChangeCh: //hall button is seen by everypeer
+			orders := pm.GetConfirmedOrders()
+			ec.SetConfirmedHallOrders(orders)
+			state := ec.GetElevatorValues()
+			mustAssignHallOrders(pm, ec, state)
+
+		case <-pm.DisconnectedPeerCh:
+			state := ec.GetElevatorValues()
+			mustAssignHallOrders(pm, ec, state)
+
+		case <-cabButtonCh:
+			log.Println("Cab press")
+			if pm.ImOnline() {
+				go func() { //Wait for ack
+					stateToAck := ec.GetElevatorValues()
+					err := pm.WaitForAck(stateToAck, config.TimeoutAck)
+					if err != nil {
+						log.Println(err)
+					} else {
+						ec.SetCabOrders(stateToAck.PressedCabButtons)
+						stateToAck.CabOrders = stateToAck.PressedCabButtons
+						pm.SetMySnapshot(stateToAck)
+					}
+				}()
+			} else { //Go solo
+				state := ec.GetElevatorValues()
+				ec.SetCabOrders(state.PressedCabButtons)
+				state.CabOrders = state.PressedCabButtons
+				pm.SetMySnapshot(state)
+			}
+		case <-stateCh:
+			state := ec.GetElevatorValues()
+			pm.SetMySnapshot(state)
+			mustAssignHallOrders(pm, ec, state)
+		}
+	}
+}
 
 func mustAssignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state controller.Elevator) {
 	if err := assignHallOrders(pm, ec, state); err != nil {
@@ -63,77 +128,4 @@ func andHallOrders(a, b controller.HallOrders_t) hallrequestassigner.HallAssignm
 		}
 	}
 	return result
-}
-
-func main() {
-	//	backup.Init()
-
-	pm := peers.GetPeerManager()
-
-	pm.Init()
-	go pm.Run()
-
-	ec := controller.GetController()
-	startState, err := pm.WaitForStartSnapshot()
-
-	if err == nil {
-		ec.InitElevatorWithStates(startState)
-	} else {
-		log.Println("Started fresh elevator")
-		ec.InitElevator()
-	}
-	myElevatorState := ec.GetElevatorValues()
-	pm.SetMySnapshot(myElevatorState)
-
-	cabButtonCh := ec.SubscribeCabButtons()
-	stateCh := ec.SubscribeElevator()
-
-	ec.Start()
-	log.Println("Started elevator controller")
-
-	for {
-		select {
-		case <-pm.UnconfirmedOrderChangeCh:
-			orders := pm.GetUnconfirmedOrders()
-			ec.SetPressedHallButtons(orders)
-			state := ec.GetElevatorValues()
-			mustAssignHallOrders(pm, ec, state)
-
-		case <-pm.ConfirmedOrderChangeCh:
-			orders := pm.GetConfirmedOrders()
-			ec.SetConfirmedHallOrders(orders)
-			state := ec.GetElevatorValues()
-			mustAssignHallOrders(pm, ec, state)
-
-		case <-pm.DisconnectedPeerCh:
-			state := ec.GetElevatorValues()
-			mustAssignHallOrders(pm, ec, state)
-
-		case <-cabButtonCh:
-			log.Println("Cab press")
-			if pm.ImOnline() {
-				go func() { //Wait for ack
-					stateToAck := ec.GetElevatorValues()
-					err := pm.WaitForAck(stateToAck, config.TimeoutAck)
-					if err != nil {
-						log.Println(err)
-					} else {
-						ec.SetCabOrders(stateToAck.PressedCabButtons)
-						stateToAck.CabOrders = stateToAck.PressedCabButtons
-						pm.SetMySnapshot(stateToAck)
-					}
-				}()
-			} else { //Go solo
-				state := ec.GetElevatorValues()
-				ec.SetCabOrders(state.PressedCabButtons)
-				state.CabOrders = state.PressedCabButtons
-				pm.SetMySnapshot(state)
-			}
-		case <-stateCh:
-			//Blir knapper satt her?
-			state := ec.GetElevatorValues()
-			pm.SetMySnapshot(state)
-			mustAssignHallOrders(pm, ec, state)
-		}
-	}
 }

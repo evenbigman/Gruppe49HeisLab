@@ -28,8 +28,6 @@ func Receiver(port int, rx chan Msg_t) {
 	}
 	defer conn.Close()
 
-	//log.Printf("[Receiver] Started on port: %d", port)
-
 	buffer := make([]byte, bufferSize)
 
 	for {
@@ -47,11 +45,7 @@ func Receiver(port int, rx chan Msg_t) {
 			continue
 		}
 
-		//log.Println(msg)
 		rx <- msg
-		//if udpAddr, ok := addr.(*net.UDPAddr); ok{
-		//log.Printf("[Receiver] Received %d bytes from %s at port %d", n, udpAddr.IP, udpAddr.Port)
-		//}
 	}
 }
 
@@ -84,8 +78,6 @@ func Transmitter(port int, tx chan Msg_t) {
 			log.Printf("[Transmitter] Sending error: %s", err)
 			continue
 		}
-
-		//log.Printf("[Transmitter] Sending %d bytes", n)
 	}
 }
 

@@ -1,10 +1,7 @@
 package peers
 
-//TODO: Handle disconnecting and reconnecting
 //TODO: Make id type
 //TODO: Make snapshot maps and status maps own types
-//TODO: Only update states based on connected peers (ignore newly connected)
-//TODO: define bcastinterval when initin pm
 
 import (
 	"fmt"
@@ -90,24 +87,15 @@ func (pm *PeerManager) Run() error {
 
 	for {
 		select {
-		case msg := <-pm.broadcastRx:
+		case msg := <-pm.broadcastRx: // On every receiver message
 			if msg.Sender != pm.myID {
 				pm.statusManager.UpdateStatus(msg.Sender)
 				ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
-				pm.ackMutex.Lock()
-				if pm.lastAckedVersion < ackedVersion {
-					pm.lastAckedVersion = ackedVersion
-					pm.ackMutex.Unlock()
-					select {
-					case <-pm.ackNotifyCh:
-					default:
-					}
-					pm.ackNotifyCh <- struct{}{}
-				} else {
-					pm.ackMutex.Unlock()
-				}
+				pm.saveAckIfNew(ackedVersion)
 
+				//Check for mismatch between pressedhallbuttons and confirmedhallorders, this is a sign that someone wants
+				//a new order or to remove a order.
 				connectedPeers := 0
 				var mutualUnconfirmedOrders [config.NumFloors][2]int
 				for id, snapshot := range msg.Snapshots {
@@ -134,6 +122,8 @@ func (pm *PeerManager) Run() error {
 					}
 				}
 
+				//Check if every connected peer knows about a new order
+				//or the removal of an order.
 				var confirmedOrders controller.HallOrders_t
 				savedConfirmedOrders := pm.GetConfirmedOrders()
 
@@ -158,7 +148,7 @@ func (pm *PeerManager) Run() error {
 				}
 			}
 
-		case <-ticker.C:
+		case <-ticker.C: //Send my state
 			snapshots := pm.snapshotManager.GetSnapshots()
 			msg := broadcast.Msg_t{
 				Sender:    pm.myID,
@@ -308,6 +298,21 @@ func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot_t, error) {
 	return snapshot, nil
 }
 
+func (pm *PeerManager) saveAckIfNew(ackedVersion int) {
+	pm.ackMutex.Lock()
+	if pm.lastAckedVersion < ackedVersion {
+		pm.lastAckedVersion = ackedVersion
+		pm.ackMutex.Unlock()
+		select {
+		case <-pm.ackNotifyCh:
+		default:
+		}
+		pm.ackNotifyCh <- struct{}{}
+	} else {
+		pm.ackMutex.Unlock()
+	}
+}
+
 func UnconfirmedOrderExists(snapshot snapshots.Snapshot_t) bool{
 	confirmedOrders := snapshot.Elevator.ConfirmedHallOrders
 	hallButtons := snapshot.Elevator.PressedHallButtons
@@ -319,18 +324,7 @@ func UnconfirmedOrderExists(snapshot snapshots.Snapshot_t) bool{
 	}
 }
 
-func orderMatrixEqual(a, b controller.HallOrders_t) bool {
-	for i := range a {
-		for j := range a[i] {
-			if a[i][j] != b[i][j] {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func GetMyID() uint64 { //Get mac address
+func GetMyID() uint64 {
 	//TODO: MOve this to broadcast
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -346,6 +340,17 @@ func GetMyID() uint64 { //Get mac address
 		}
 	}
 	return 0
+}
+
+func orderMatrixEqual(a, b controller.HallOrders_t) bool {
+	for i := range a {
+		for j := range a[i] {
+			if a[i][j] != b[i][j] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func initWatchdog(timeout time.Duration) {
