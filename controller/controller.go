@@ -506,17 +506,12 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 	floor := state.CurrentFloor
 
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][up] {
-		ec.stopElevator()
-		time.Sleep(config.ElevatorClearDelay)
-		// this delay had to be implemented to compensate for too fast clearing of orders, which created an inconsistent state
 		ec.clearCabOrder(state.CurrentFloor)
 		ec.clearHallorder(floor, up)
 		ec.openAndCloseDoorAtcurrentFloor()
 	}
 
 	if floor == maxFloor {
-		ec.stopElevator()
-		time.Sleep(config.ElevatorClearDelay)
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
 		ec.openAndCloseDoorAtcurrentFloor()
@@ -548,16 +543,12 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 	floor := state.CurrentFloor
 
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][down] {
-		ec.stopElevator()
-		time.Sleep(config.ElevatorClearDelay)
 		ec.clearHallorder(floor, down)
 		ec.clearCabOrder(state.CurrentFloor)
 		ec.openAndCloseDoorAtcurrentFloor()
 	}
 
 	if floor == 0 {
-		ec.stopElevator()
-		time.Sleep(config.ElevatorClearDelay)
 		ec.clearHallorder(floor, up)
 		ec.clearCabOrder(state.CurrentFloor)
 		ec.openAndCloseDoorAtcurrentFloor()
