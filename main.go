@@ -52,7 +52,7 @@ func main() {
 			state := ec.GetElevatorValues()
 			mustAssignHallOrders(pm, ec, state)
 
-		case <-pm.ConfirmedOrderChangeCh: //hall button is seen by everypeer
+		case <-pm.ConfirmedOrderChangeCh: //hall button is seen by every peer
 			orders := pm.GetConfirmedOrders()
 			ec.SetConfirmedHallOrders(orders)
 			state := ec.GetElevatorValues()
