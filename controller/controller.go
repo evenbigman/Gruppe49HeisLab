@@ -159,7 +159,7 @@ func (ec *ElevatorController) InitElevatorWithStates(elevator Elevator, port ...
 func (ec *ElevatorController) SetGlobalHallOrders(confirmedHallOrders [numFloors][2]bool) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
-	ec.elevator.PressedHallButtons = confirmedHallOrders
+	ec.elevator.ConfirmedHallOrders = confirmedHallOrders
 	ec.notifyState()
 	ec.notifyHallOrders()
 }
