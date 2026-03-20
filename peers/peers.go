@@ -26,8 +26,8 @@ type PeerManager struct {
 	UnconfirmedOrderChangeCh chan struct{}
 	DisconnectedPeerCh       chan struct{}
 	myID                     uint64
-	broadcastTx              chan broadcast.Msg
-	broadcastRx              chan broadcast.Msg
+	broadcastTx              chan broadcast.Msg_t
+	broadcastRx              chan broadcast.Msg_t
 	snapshotManager          *snapshots.SnapshotManager
 	statusManager            *status.StatusManager
 	initialized              bool
@@ -53,8 +53,8 @@ func GetPeerManager() *PeerManager {
 		UnconfirmedOrderChangeCh: make(chan struct{}),
 		DisconnectedPeerCh:       make(chan struct{}),
 		myID:                     myID,
-		broadcastTx:              make(chan broadcast.Msg),
-		broadcastRx:              make(chan broadcast.Msg),
+		broadcastTx:              make(chan broadcast.Msg_t),
+		broadcastRx:              make(chan broadcast.Msg_t),
 		snapshotManager:          snapshots.GetSnapshotManager(myID),
 		statusManager:            status.GetStatusManager(config.ConnectionTimeThreshold, config.TimeoutInterval, config.BcastInterval),
 		initialized:              false,
@@ -160,7 +160,7 @@ func (pm *PeerManager) Run() error {
 
 		case <-ticker.C:
 			snapshots := pm.snapshotManager.GetSnapshots()
-			msg := broadcast.Msg{
+			msg := broadcast.Msg_t{
 				Sender:    pm.myID,
 				Snapshots: snapshots,
 			}
@@ -331,6 +331,7 @@ func orderMatrixEqual(a, b controller.HallOrders_t) bool {
 }
 
 func GetMyID() uint64 { //Get mac address
+	//TODO: MOve this to broadcast
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
