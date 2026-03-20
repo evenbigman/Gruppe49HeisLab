@@ -47,7 +47,7 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 	return nil
 }
 
-func snapshotsForAssignment(pm *peers.PeerManager, myID uint64, mySnapshot snapshots.Snapshot_t) map[uint64]snapshots.Snapshot {
+func snapshotsForAssignment(pm *peers.PeerManager, myID uint64, mySnapshot snapshots.Snapshot_t) map[uint64]snapshots.Snapshot_t {
 	allSnapshotsByID := maps.Clone(pm.GetConnectedSnapshots())
 	if allSnapshotsByID == nil {
 		allSnapshotsByID = make(map[uint64]snapshots.Snapshot_t, 1)
