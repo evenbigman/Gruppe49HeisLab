@@ -56,7 +56,7 @@ func main() {
 
 	for {
 		select {
-		case <-orderUpdateTicker.C:
+		case <-orderUpdateTicker.C: // update order assignment every 5 second for redundancy
 			state := ec.GetElevatorValues()
 			mustAssignHallOrders(pm, ec, state)
 
