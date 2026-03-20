@@ -12,6 +12,6 @@ const (
 	DoorOpenTime             = 3 * time.Second
 	InitDelay                = 5 * time.Second
 	TimeoutAck               = 1 * time.Second
-	WatchdogBroadcastTimeout = 4 * time.Second
+	WatchdogBroadcastTimeout = 10 * time.Second
 	DefaultElevioPort        = "15657"
 )
