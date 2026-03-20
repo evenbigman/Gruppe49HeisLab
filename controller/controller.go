@@ -164,11 +164,23 @@ func (ec *ElevatorController) SetGlobalHallOrders(confirmedHallOrders [numFloors
 	ec.notifyHallOrders()
 }
 
+func (ec *ElevatorController) SetConfirmedHallOrderAtFloor(floor int, direction directions, value bool) {
+	ec.stateLock.Lock()
+	defer ec.stateLock.Unlock()
+	ec.elevator.ConfirmedHallOrders[floor][direction] = value
+}
+
 func (ec *ElevatorController) SetPressedHallButtons(pressedButtons HallOrders) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.PressedHallButtons = pressedButtons
 	ec.notifyState()
+}
+
+func (ec *ElevatorController) SetPressedHallButtonAtFloor(floor int, direction directions, value bool) {
+	ec.stateLock.Lock()
+	defer ec.stateLock.Unlock()
+	ec.elevator.PressedHallButtons[floor][direction] = value
 }
 
 func (ec *ElevatorController) AssignHallOrders(assignedHallOrders [numFloors][2]bool) {
