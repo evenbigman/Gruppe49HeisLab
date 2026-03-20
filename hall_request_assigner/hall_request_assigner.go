@@ -9,7 +9,7 @@ import (
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	"sanntidslab/peers/snapshots"
-	"sort"
+	"slices"
 )
 
 type order [2]bool
@@ -116,23 +116,16 @@ func sortSnapshotsAndFindMyIndex(snapshotsByID map[uint64]snapshots.Snapshot, my
 		ids = append(ids, id)
 	}
 
-	sortedIDs := ids
-	sort.Slice(sortedIDs, func(i, j int) bool { return ids[i] < ids[j] })
+	slices.Sort(ids)
 
-	myIndex := -1
-	for i, id := range sortedIDs {
-		if id == myID {
-			myIndex = i
-			break
-		}
-	}
-	if myIndex == -1 {
+	myIndex, found := slices.BinarySearch(ids, myID)
+	if !found {
 		return nil, -1, fmt.Errorf("could not find my id %d in sorted ids", myID)
 	}
 
-	sortedSnapshots := make([]snapshots.Snapshot, 0, len(ids))
-	for _, id := range ids {
-		sortedSnapshots = append(sortedSnapshots, snapshotsByID[id])
+	sortedSnapshots := make([]snapshots.Snapshot, len(ids))
+	for i, id := range ids {
+		sortedSnapshots[i] = snapshotsByID[id]
 	}
 
 	return sortedSnapshots, myIndex, nil
