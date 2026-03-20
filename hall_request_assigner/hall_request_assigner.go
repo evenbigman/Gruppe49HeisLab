@@ -12,7 +12,7 @@ import (
 
 type ElevatorsSnapshot struct {
 	HallCalls [config.NumFloors][2]bool
-	Snapshot  []snapshots.Snapshot
+	Snapshot  []snapshots.Snapshot_t
 }
 
 type HallAssignments map[string][config.NumFloors][2]bool

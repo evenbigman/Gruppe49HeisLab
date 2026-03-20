@@ -15,13 +15,14 @@ import (
 	"sync"
 )
 
-type Snapshot struct {
+type Snapshot_t struct {
 	Version  int
 	Elevator controller.Elevator
 }
+
 type SnapshotManager struct {
 	mutex     sync.RWMutex
-	snapshots map[uint64]Snapshot
+	snapshots map[uint64]Snapshot_t
 	myID      uint64
 }
 
@@ -33,7 +34,7 @@ var (
 func GetSnapshotManager(myID uint64) *SnapshotManager {
 	sm := &SnapshotManager{
 		myID:      myID,
-		snapshots: make(map[uint64]Snapshot),
+		snapshots: make(map[uint64]Snapshot_t),
 	}
 
 	once.Do(func() {
@@ -43,7 +44,7 @@ func GetSnapshotManager(myID uint64) *SnapshotManager {
 }
 
 // Takes incoming state, updates if necessary. Also checks if new order has come :O And returnsed lowest version they have of our state
-func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot) (ackedVersion int) {
+func (sm *SnapshotManager) MergeSnapshots(incomingSnapshots map[uint64]Snapshot_t) (ackedVersion int) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -73,24 +74,24 @@ func (sm *SnapshotManager) SetSnapshot(ID uint64, version int, elevator controll
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	sm.snapshots[ID] = Snapshot{
+	sm.snapshots[ID] = Snapshot_t{
 		Version:  version,
 		Elevator: elevator,
 	}
 }
 
-func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot {
+func (sm *SnapshotManager) GetSnapshots() map[uint64]Snapshot_t {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
-	output := make(map[uint64]Snapshot, len(sm.snapshots))
+	output := make(map[uint64]Snapshot_t, len(sm.snapshots))
 	for id, storedSnapshot := range sm.snapshots {
 		output[id] = storedSnapshot
 	}
 	return output
 }
 
-func (sm *SnapshotManager) ComputeOrders(oldSnapshots map[uint64]Snapshot, connectedIds []uint64) [config.NumFloors][2]bool {
+func (sm *SnapshotManager) ComputeOrders(oldSnapshots map[uint64]Snapshot_t, connectedIds []uint64) [config.NumFloors][2]bool {
 
 	newSnapshots := sm.GetSnapshots()
 
