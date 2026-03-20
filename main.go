@@ -36,8 +36,7 @@ func main() {
 	ec.Start()
 	log.Println("Started elevator controller")
 	
-	// Take cab orders that you previously had before crashing
-	if err == nil {
+	if err == nil { // take cab orders that you previously had before crashing
 		elevator := ec.GetElevatorValues()
 		ec.SetCabOrders(elevator.PressedCabButtons)
 		elevator.CabOrders = elevator.PressedCabButtons
@@ -46,13 +45,13 @@ func main() {
 	
 	for {
 		select {
-		case <-pm.UnconfirmedOrderChangeCh: //someone presses a hall button
+		case <-pm.UnconfirmedOrderChangeCh: // someone presses a hall button
 			orders := pm.GetUnconfirmedOrders()
 			ec.SetPressedHallButtons(orders)
 			state := ec.GetElevatorValues()
 			mustAssignHallOrders(pm, ec, state)
 
-		case <-pm.ConfirmedOrderChangeCh: //hall button is seen by every peer
+		case <-pm.ConfirmedOrderChangeCh: // hall button is seen by every peer
 			orders := pm.GetConfirmedOrders()
 			ec.SetConfirmedHallOrders(orders)
 			state := ec.GetElevatorValues()
@@ -65,7 +64,7 @@ func main() {
 		case <-cabButtonCh:
 			log.Println("Cab press")
 			if pm.ImOnline() {
-				go func() { //Wait for ack
+				go func() { // wait for ack
 					stateToAck := ec.GetElevatorValues()
 					err := pm.WaitForAck(stateToAck, config.TimeoutAck)
 					if err != nil {
@@ -76,7 +75,7 @@ func main() {
 						pm.SetMySnapshot(stateToAck)
 					}
 				}()
-			} else { //Go solo
+			} else { // go solo
 				state := ec.GetElevatorValues()
 				ec.SetCabOrders(state.PressedCabButtons)
 				state.CabOrders = state.PressedCabButtons
