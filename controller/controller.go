@@ -652,13 +652,13 @@ func (ec *ElevatorController) handleNewHallOrder() {
 		}
 	case DoorOpenIdle:
 		if state.AssignedHallOrders[floor][up] {
-			ec.setState(MovingUp)
+			ec.setState(DoorOpenHeadingUp)
 			ec.handleArrivalAtFloorGoingUp()
 			return
 		}
 
 		if state.AssignedHallOrders[floor][down] {
-			ec.setState(MovingDown)
+			ec.setState(DoorOpenHeadingDown)
 			ec.handleArrivalAtFloorGoingDown()
 			return
 		}
@@ -675,8 +675,8 @@ func (ec *ElevatorController) handleNewHallOrder() {
 			return
 		}
 
-	case Obstructed:
-		//This is handled by others, and might not need to be taken into account
+	default:
+		//do nothing
 	}
 }
 
