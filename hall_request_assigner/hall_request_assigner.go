@@ -99,7 +99,7 @@ func initAssignmentCommand(snapshotJSON []byte) (*exec.Cmd, error) {
 
 func sanitizeSnapshots(snapshotsByID map[uint64]snapshots.Snapshot_t) map[uint64]snapshots.Snapshot_t {
 	sanitized := maps.Clone(snapshotsByID)
-	removeObstructedElevators(sanitized)
+	removeUnavailableElevators(sanitized)
 	removeImpossibleStates(sanitized)
 	return sanitized
 }
@@ -124,9 +124,9 @@ func removeImpossibleStates(snapshotsByID map[uint64]snapshots.Snapshot_t) {
 	}
 }
 
-func removeObstructedElevators(snapshotsByID map[uint64]snapshots.Snapshot_t) {
+func removeUnavailableElevators(snapshotsByID map[uint64]snapshots.Snapshot_t) {
 	for id, snapshot := range snapshotsByID {
-		if snapshot.Elevator.State == controller.Obstructed {
+		if snapshot.Elevator.State == controller.Obstructed || snapshot.Elevator.State == controller.MotorFailure {
 			delete(snapshotsByID, id)
 		}
 	}
@@ -161,6 +161,8 @@ func statusToString(status controller.ElevatorState_t) (string, error) {
 		return "moving", nil
 	case controller.DoorOpenHeadingUp, controller.DoorOpenHeadingDown, controller.DoorOpenIdle:
 		return "doorOpen", nil
+	case controller.MotorFailure:
+		return "idle", nil
 	default:
 		return "", fmt.Errorf("unknown elevator status: %d", status)
 	}
@@ -172,7 +174,7 @@ func directionToString(state controller.ElevatorState_t) (string, error) {
 		return "up", nil
 	case controller.MovingDown, controller.DoorOpenHeadingDown:
 		return "down", nil
-	case controller.Idle, controller.DoorOpenIdle:
+	case controller.Idle, controller.DoorOpenIdle, controller.MotorFailure:
 		return "stop", nil
 	default:
 		return "", fmt.Errorf("unknown elevator moving state: %d", state)
