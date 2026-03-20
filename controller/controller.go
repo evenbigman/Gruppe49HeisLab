@@ -138,10 +138,16 @@ func (ec *ElevatorController) InitElevatorWithStates(elevator Elevator, port ...
 func (ec *ElevatorController) SetGlobalHallOrders(confirmedHallOrders [numFloors][2]bool) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
-	ec.elevator.ConfirmedHallOrders = confirmedHallOrders
 	ec.elevator.PressedHallButtons = confirmedHallOrders
 	ec.notifyState()
 	ec.notfiyHallOrders()
+}
+
+func (ec *ElevatorController) SetPressedHallButtons(pressedButtons HallOrders) {
+	ec.stateLock.Lock()
+	defer ec.stateLock.Unlock()
+	ec.elevator.PressedHallButtons = pressedButtons
+	ec.notifyState()
 }
 
 func (ec *ElevatorController) AssignHallOrders(assignedHallOrders [numFloors][2]bool) {
@@ -730,11 +736,7 @@ func (ec *ElevatorController) handleLights() {
 	for {
 		select {
 		case <-cabOrderCh:
-			state := ec.GetElevatorState()
-			for floor, order := range state.CabOrders {
-				elevio.SetButtonLamp(elevio.BT_Cab, floor, order)
-			}
-
+			ec.handleCabLights()
 		case <-hallOrderCh:
 			state := ec.GetElevatorState()
 			for floor, orders := range state.ConfirmedHallOrders {
@@ -746,14 +748,30 @@ func (ec *ElevatorController) handleLights() {
 			for floor, orders := range state.ConfirmedHallOrders {
 				elevio.SetButtonLamp(elevio.BT_HallUp, floor, orders[up])
 				elevio.SetButtonLamp(elevio.BT_HallDown, floor, orders[down])
-			}
-			for floor, order := range state.CabOrders {
-				elevio.SetButtonLamp(elevio.BT_Cab, floor, order)
-			}
 
+			}
+			ec.handleCabLights()
 		}
 	}
 
+}
+
+func (ec *ElevatorController) handleCabLights() {
+	state := ec.GetElevatorState()
+	for floor, order := range state.CabOrders {
+		elevio.SetButtonLamp(elevio.BT_Cab, floor, order)
+	}
+
+}
+
+func (ec *ElevatorController) handleHallLights() {
+	state := ec.GetElevatorState()
+	for floor, orders := range state.ConfirmedHallOrders {
+		for i, value := range orders {
+			setvalue := value && state.PressedHallButtons[floor][i]
+			elevio.SetButtonLamp(elevio.ButtonType(i), floor, setvalue)
+		}
+	}
 }
 
 func (ec *ElevatorController) clearCabOrder(floor int) {
@@ -769,7 +787,6 @@ func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.AssignedHallOrders[floor][direction] = false
-	ec.elevator.ConfirmedHallOrders[floor][direction] = false
 	ec.elevator.PressedHallButtons[floor][direction] = false
 	ec.notfiyHallOrders()
 	ec.notifyState()
