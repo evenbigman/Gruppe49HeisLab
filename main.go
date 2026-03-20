@@ -1,6 +1,6 @@
 package main
 import (
-	//	backup "sanntidslab/backup_handler"
+	backup "sanntidslab/backup_handler"
 	"fmt"
 	"log"
 	"maps"
@@ -11,7 +11,7 @@ import (
 	"sanntidslab/peers/snapshots"
 )
 func main() {
-	//	backup.Init()
+	backup.Init()
 
 	pm := peers.GetPeerManager()
 
