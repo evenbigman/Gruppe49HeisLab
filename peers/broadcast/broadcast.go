@@ -12,12 +12,12 @@ import (
 
 const bufferSize = 1024
 
-type Msg struct {
+type Msg_t struct {
 	Sender    uint64
 	Snapshots map[uint64]snapshots.Snapshot_t
 }
 
-func Receiver(port int, rx chan Msg) {
+func Receiver(port int, rx chan Msg_t) {
 	cfg := net.ListenConfig{
 		Control: broadcastControl,
 	}
@@ -39,7 +39,7 @@ func Receiver(port int, rx chan Msg) {
 			continue
 		}
 
-		msg := Msg{}
+		msg := Msg_t{}
 
 		err = msgpack.Unmarshal(buffer[:n], &msg)
 		if err != nil {
@@ -55,7 +55,7 @@ func Receiver(port int, rx chan Msg) {
 	}
 }
 
-func Transmitter(port int, tx chan Msg) {
+func Transmitter(port int, tx chan Msg_t) {
 	cfg := net.ListenConfig{
 		Control: broadcastControl,
 	}
