@@ -820,8 +820,7 @@ func (ec *ElevatorController) handleHallLights() {
 	state := ec.GetElevatorState()
 	for floor, orders := range state.ConfirmedHallOrders {
 		for i, value := range orders {
-			setvalue := value && state.PressedHallButtons[floor][i]
-			elevio.SetButtonLamp(elevio.ButtonType(i), floor, setvalue)
+			elevio.SetButtonLamp(elevio.ButtonType(i), floor, value)
 		}
 	}
 }
