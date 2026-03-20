@@ -7,7 +7,7 @@ import(
 	"sync"
 )
 
-type Status struct{
+type Status_t struct{
 	FirstSeen time.Time
 	LastSeen time.Time
 	Connected bool
@@ -15,7 +15,7 @@ type Status struct{
 
 type StatusManager struct{
 	DisconnectedPeerCh chan struct{}
-	peers map[uint64]Status
+	peers map[uint64]Status_t
 	connectionTimeThreshold time.Duration
 	timeout time.Duration
 	interval time.Duration
@@ -33,7 +33,7 @@ func GetStatusManager(connectionTimeThreshold time.Duration, timeout time.Durati
 		connectionTimeThreshold: connectionTimeThreshold,
 		timeout:  timeout,
 		interval: interval,
-		peers: make(map[uint64]Status),
+		peers: make(map[uint64]Status_t),
 	}
 	once.Do(func() {
 		instance = sm
@@ -56,7 +56,7 @@ func (sm *StatusManager) UpdateStatus(peerID uint64){
 	
 	peer, peerIsStored := sm.peers[peerID]
 	if !peerIsStored{
-		peer = Status{
+		peer = Status_t{
 			FirstSeen: time.Now(),
 			LastSeen: time.Now(),
 			Connected: false,
@@ -68,11 +68,11 @@ func (sm *StatusManager) UpdateStatus(peerID uint64){
 	}
 }
 
-func (sm *StatusManager) GetStatuses() map[uint64]Status{
+func (sm *StatusManager) GetStatuses() map[uint64]Status_t{
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	
-	output := make(map[uint64]Status, len(sm.peers))
+	output := make(map[uint64]Status_t, len(sm.peers))
 	for id, storedStatus := range sm.peers {
 		output[id] = storedStatus 
 	}

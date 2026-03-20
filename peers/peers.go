@@ -275,12 +275,12 @@ func (pm *PeerManager) SetUnconfirmedOrders(orders controller.HallOrders_t) {
 	pm.unconfirmedOrders = orders
 }
 
-func (pm *PeerManager) GetStatus(ID uint64) (status.Status, error) {
+func (pm *PeerManager) GetStatus(ID uint64) (status.Status_t, error){
 	statuses := pm.statusManager.GetStatuses()
 	s, statusFound := statuses[ID]
 	if !statusFound {
 		err := fmt.Errorf("Status for %d not found", ID)
-		return status.Status{}, err
+		return status.Status_t{}, err
 	}
 
 	return s, nil
