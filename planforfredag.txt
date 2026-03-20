@@ -1,0 +1,5 @@
+1. Teste two-stage-commit:
+2. Teste grundig med 3 linx pcer / heiser
+3. Teste og definere oppførsel ved disconnect/reconnect
+4. Renskriving
+5. Dokumentsjon

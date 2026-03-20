@@ -1,4 +1,5 @@
 package main
+
 //BUG: Hall orders get assigned even though offline
 //BUG: Goes through roof
 //BUG: Hall orders assigned to where you are standing from others, will not get removed when taken (on the others side)
@@ -18,13 +19,18 @@ import (
 
 func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
 	mySnapshot, _ := pm.GetMySnapshot()
+	if mySnapshot.Elevator.State == controller.Obstructed {
+		return
+	}
 	connectedSnapshots := pm.GetConnectedSnapshots()
 	myID := peers.GetMyID()
 
 	snapshotByID := make(map[uint64]snapshots.Snapshot, len(connectedSnapshots)+1)
 	snapshotByID[myID] = mySnapshot
 	for id, snapshot := range connectedSnapshots {
-		snapshotByID[id] = snapshot
+		if snapshot.Elevator.State != controller.Obstructed {
+			snapshotByID[id] = snapshot
+		}
 	}
 
 	ids := make([]uint64, 0, len(snapshotByID))
@@ -107,8 +113,14 @@ func main() {
 		//snapshot, _ := pm.GetMySnapshot()
 		//log.Println("My snappshot:", snapshot.Elevator.ConfirmedHallOrders)
 		select {
-		case <-pm.OrderChangeCh:
-			orders := pm.GetOrders()
+		case <-pm.UnconfirmedOrderChangeCh:
+			orders := pm.GetUnconfirmedOrders()
+			ec.SetPressedHallButtons(orders)
+			state := ec.GetElevatorState()
+			assignHallOrders(pm, ec, &state)
+
+		case <-pm.ConfirmedOrderChangeCh:
+			orders := pm.GetConfirmedOrders()
 			ec.SetGlobalHallOrders(orders)
 			state := ec.GetElevatorState()
 			assignHallOrders(pm, ec, &state)
@@ -132,11 +144,11 @@ func main() {
 					}
 				}()
 			} else { //Go solo
-					state := ec.GetElevatorState()
-					ec.SetCabOrders(state.PressedCabButtons)
-					state.CabOrders = state.PressedCabButtons
-					pm.SetMySnapshot(state)
-				}
+				state := ec.GetElevatorState()
+				ec.SetCabOrders(state.PressedCabButtons)
+				state.CabOrders = state.PressedCabButtons
+				pm.SetMySnapshot(state)
+			}
 		case <-stateCh:
 			//Blir knapper satt her?
 			state := ec.GetElevatorState()
