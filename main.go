@@ -110,8 +110,6 @@ func main() {
 	log.Println("Started elevator controller")
 
 	for {
-		//snapshot, _ := pm.GetMySnapshot()
-		//log.Println("My snappshot:", snapshot.Elevator.ConfirmedHallOrders)
 		select {
 		case <-pm.UnconfirmedOrderChangeCh:
 			orders := pm.GetUnconfirmedOrders()
@@ -156,41 +154,4 @@ func main() {
 			assignHallOrders(pm, ec, &state)
 		}
 	}
-	//	case <-buttonCh:
-	//		stateToAck := ec.GetElevatorState()
-	//		go func() {
-	//			err := pm.WaitForAck(stateToAck, config.TimeoutAck)
-	//			if err != nil {
-	//			} else {
-	//				ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
-	//				// TODO: Add hallrequest assigner
-
-	//				// START OF HALL REQUEST ASSIGNER STUFF
-	//				mySnapshot, _ := pm.GetMySnapshot()
-	//				connectedSnapshots := pm.GetConnectedSnapshots()
-
-	//				allSnapshots := make([]snapshots.Snapshot, 0, 1+len(connectedSnapshots))
-	//				allSnapshots = append(allSnapshots, mySnapshot)            // first element
-	//				allSnapshots = append(allSnapshots, connectedSnapshots...) // rest
-
-	//				elevatorsSnapshot := hallrequestassigner.ElevatorsSnapshot{
-	//					HallCalls: stateToAck.ConfirmedHallOrders,
-	//					Snapshot:  allSnapshots,
-	//				}
-
-	//				hallAssignments, _ := hallrequestassigner.AssignHallRequests(elevatorsSnapshot)
-
-	//				myOrders := hallAssignments["id_1"]
-
-	//				ec.AssignHallOrders(myOrders)
-	//				// END OF HALL REQUEST ASSIGNER STUFF
-
-	//				ec.SetCabOrders(stateToAck.PressedCabButtons)
-	//			}
-	//		}()
-	//	case <-stateCh:
-	//		state := ec.GetElevatorState()
-	//		pm.SetMySnapshot(state)
-	//	}
-	//}
 }

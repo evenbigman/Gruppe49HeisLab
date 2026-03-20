@@ -12,7 +12,7 @@ import (
 
 type ElevatorsSnapshot struct {
 	HallCalls controller.HallOrders_t
-	Snapshot  []snapshots.Snapshot
+	Snapshot  []snapshots.Snapshot_t
 }
 
 type HallAssignments map[string]controller.HallOrders_t
