@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os/exec"
 	"runtime"
 	"sanntidslab/config"
@@ -13,7 +14,7 @@ import (
 )
 
 type HallAssignment_t [config.NumFloors][2]bool
-type HallAssignments map[string]HallAssignment_t
+type HallAssignments_t map[string]HallAssignment_t
 
 // Public functions
 
@@ -88,18 +89,10 @@ func initAssignmentCommand(snapshotJSON []byte) (*exec.Cmd, error) {
 }
 
 func sanitizeSnapshots(snapshotsByID map[uint64]snapshots.Snapshot) map[uint64]snapshots.Snapshot {
-	sanitized := copySnapshots(snapshotsByID)
+	sanitized := maps.Clone(snapshotsByID)
 	removeObstructedElevators(sanitized)
 	removeImpossibleStates(sanitized)
 	return sanitized
-}
-
-func copySnapshots(snapshotsByID map[uint64]snapshots.Snapshot) map[uint64]snapshots.Snapshot {
-	cloned := make(map[uint64]snapshots.Snapshot, len(snapshotsByID))
-	for id, snapshot := range snapshotsByID {
-		cloned[id] = snapshot
-	}
-	return cloned
 }
 
 func removeImpossibleStates(snapshotsByID map[uint64]snapshots.Snapshot) {
@@ -208,8 +201,8 @@ func snapshotToJSON(hallCalls [config.NumFloors][2]bool, snapshotsList []snapsho
 	return json.MarshalIndent(payload, "", "  ")
 }
 
-func parseHallAssignments(assignmentsJSON []byte) (HallAssignments, error) {
-	var assignments HallAssignments
+func parseHallAssignments(assignmentsJSON []byte) (HallAssignments_t, error) {
+	var assignments HallAssignments_t
 
 	err := json.Unmarshal(assignmentsJSON, &assignments)
 	if err != nil {
