@@ -13,4 +13,5 @@ const (
 	InitDelay         = 5 * time.Second
 	TimeoutAck        = 1 * time.Second
 	DefaultElevioPort = "15657"
+	ElevatorClearDelay = 2 * time.Second
 )
