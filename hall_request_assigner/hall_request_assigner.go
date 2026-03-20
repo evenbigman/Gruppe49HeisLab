@@ -12,29 +12,27 @@ import (
 	"slices"
 )
 
-type order [2]bool
-type HallAssignment [config.NumFloors]order
-type HallAssignments map[string]HallAssignment
+type HallAssignment_t [config.NumFloors][2]bool
+type HallAssignments map[string]HallAssignment_t
 
 // Public functions
 
-func GetAssignedHallRequests(confirmedHallCalls [config.NumFloors][2]bool, SnapshotsOnNetwork map[uint64]snapshots.Snapshot, myID uint64) (HallAssignment, error) {
-	removeObstructedElevators(&SnapshotsOnNetwork)
-	removeImpossibleStates(&SnapshotsOnNetwork)
+func GetAssignedHallRequests(confirmedHallCalls [config.NumFloors][2]bool, snapshotsOnNetwork map[uint64]snapshots.Snapshot, myID uint64) (HallAssignment_t, error) {
+	sanitizedSnapshots := sanitizeSnapshots(snapshotsOnNetwork)
 
-	sortedSnapshots, myIndex, err := sortSnapshotsAndFindMyIndex(SnapshotsOnNetwork, myID)
+	sortedSnapshots, myIndex, err := sortSnapshotsAndFindMyIndex(sanitizedSnapshots, myID)
 	if err != nil {
-		return HallAssignment{}, err
+		return HallAssignment_t{}, err
 	}
 
 	snapshotJSON, err := snapshotToJSON(confirmedHallCalls, sortedSnapshots)
 	if err != nil {
-		return HallAssignment{}, fmt.Errorf("failed to marshal elevator state: %w", err)
+		return HallAssignment_t{}, fmt.Errorf("failed to marshal elevator state: %w", err)
 	}
 
 	myAssignment, err := runAssignmentAndGetMyOrders(snapshotJSON, myIndex)
 	if err != nil {
-		return HallAssignment{}, err
+		return HallAssignment_t{}, err
 	}
 
 	return myAssignment, nil
@@ -42,48 +40,70 @@ func GetAssignedHallRequests(confirmedHallCalls [config.NumFloors][2]bool, Snaps
 
 // Priavte functions
 
-func runAssignmentAndGetMyOrders(snapshotJSON []byte, myIndex int) (HallAssignment, error) {
-	cmd := initAssignmentCommand(snapshotJSON)
+func runAssignmentAndGetMyOrders(snapshotJSON []byte, myIndex int) (HallAssignment_t, error) {
+	cmd, err := initAssignmentCommand(snapshotJSON)
+	if err != nil {
+		return HallAssignment_t{}, err
+	}
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
-		return HallAssignment{}, fmt.Errorf("hall request assignment command failed: %w (stderr: %s)", err, stderr.String())
+		return HallAssignment_t{}, fmt.Errorf("hall request assignment command failed: %w (stderr: %s)", err, stderr.String())
 	}
 
 	assignmentsJSON := bytes.TrimSpace(stdout.Bytes())
+	if len(assignmentsJSON) == 0 {
+		return HallAssignment_t{}, fmt.Errorf("hall request assignment command returned empty output")
+	}
+
 	assignments, err := parseHallAssignments(assignmentsJSON)
 	if err != nil {
-		return HallAssignment{}, fmt.Errorf("failed to unmarshal elevator assignments: %w", err)
+		return HallAssignment_t{}, fmt.Errorf("failed to unmarshal elevator assignments: %w", err)
 	}
 
 	assignmentKey := fmt.Sprintf("id_%d", myIndex+1)
 	myAssignment, ok := assignments[assignmentKey]
 	if !ok {
-		return HallAssignment{}, fmt.Errorf("missing hall assignment for %s", assignmentKey)
+		return HallAssignment_t{}, fmt.Errorf("missing hall assignment for %s", assignmentKey)
 	}
 
 	return myAssignment, nil
 }
 
-func initAssignmentCommand(snapshotJSON []byte) *exec.Cmd {
+func initAssignmentCommand(snapshotJSON []byte) (*exec.Cmd, error) {
 	operativeSystem := runtime.GOOS
-	var cmd *exec.Cmd
 	switch operativeSystem {
 	case "windows":
-		cmd = exec.Command("./hall_request_assigner", "--input", string(snapshotJSON))
+		return exec.Command("./hall_request_assigner", "--input", string(snapshotJSON)), nil
 	case "linux":
-		cmd = exec.Command("./hall_request_assigner_script", "--input", string(snapshotJSON))
+		return exec.Command("./hall_request_assigner_script", "--input", string(snapshotJSON)), nil
+	default:
+		return nil, fmt.Errorf("unsupported operating system for hall request assigner: %s", operativeSystem)
 	}
-	return cmd
 }
 
-func removeImpossibleStates(snapshotsByID *map[uint64]snapshots.Snapshot) {
-	for id, snapshot := range *snapshotsByID {
+func sanitizeSnapshots(snapshotsByID map[uint64]snapshots.Snapshot) map[uint64]snapshots.Snapshot {
+	sanitized := copySnapshots(snapshotsByID)
+	removeObstructedElevators(sanitized)
+	removeImpossibleStates(sanitized)
+	return sanitized
+}
+
+func copySnapshots(snapshotsByID map[uint64]snapshots.Snapshot) map[uint64]snapshots.Snapshot {
+	cloned := make(map[uint64]snapshots.Snapshot, len(snapshotsByID))
+	for id, snapshot := range snapshotsByID {
+		cloned[id] = snapshot
+	}
+	return cloned
+}
+
+func removeImpossibleStates(snapshotsByID map[uint64]snapshots.Snapshot) {
+	for id, snapshot := range snapshotsByID {
 		elevator := snapshot.Elevator
 
 		atBottomFloor := elevator.CurrentFloor == 0
@@ -98,14 +118,14 @@ func removeImpossibleStates(snapshotsByID *map[uint64]snapshots.Snapshot) {
 		}
 
 		snapshot.Elevator = elevator
-		(*snapshotsByID)[id] = snapshot
+		snapshotsByID[id] = snapshot
 	}
 }
 
-func removeObstructedElevators(snapshotsByID *map[uint64]snapshots.Snapshot) {
-	for id, snapshot := range *snapshotsByID {
+func removeObstructedElevators(snapshotsByID map[uint64]snapshots.Snapshot) {
+	for id, snapshot := range snapshotsByID {
 		if snapshot.Elevator.State == controller.Obstructed {
-			delete(*snapshotsByID, id)
+			delete(snapshotsByID, id)
 		}
 	}
 }
