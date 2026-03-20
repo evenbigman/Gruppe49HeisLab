@@ -38,8 +38,10 @@ type PeerManager struct {
 }
 
 var (
-	instance *PeerManager
-	once     sync.Once
+	instance     *PeerManager
+	once         sync.Once
+	watchdog     *time.Timer
+	watchdogOnce sync.Once
 )
 
 func GetPeerManager() *PeerManager {
@@ -69,6 +71,7 @@ func (pm *PeerManager) Init() {
 
 	go broadcast.Transmitter(config.BcastPort, pm.broadcastTx)
 	go broadcast.Receiver(config.BcastPort, pm.broadcastRx)
+	initWatchdog(config.WatchdogBroadcastTimeout)
 
 	pm.initialized = true
 }
@@ -161,6 +164,7 @@ func (pm *PeerManager) Run() error {
 			}
 			pm.broadcastTx <- msg
 		}
+		kickWatchdog()
 	}
 }
 
@@ -339,4 +343,18 @@ func GetMyID() uint64 { //Get mac address
 		}
 	}
 	return 0
+}
+
+func initWatchdog(timeout time.Duration) {
+	watchdogOnce.Do(func() {
+		watchdog = time.AfterFunc(timeout, func() {
+			fmt.Fprintln(os.Stderr, "watchdog: timeout exceeded, shutting down")
+			pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			os.Exit(1)
+		})
+	})
+}
+
+func kickWatchdog() {
+	watchdog.Reset(config.ConnectionTimeThreshold)
 }
