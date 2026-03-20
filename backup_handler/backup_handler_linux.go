@@ -14,7 +14,7 @@ import (
 func createBackup() (*exec.Cmd, error) {
 	myPid := os.Getpid()
 
-	executablePath, err := os.Executable()
+	executablePath, err := executablePathForRespawn()
 	if err != nil {
 		return nil, err
 	}
@@ -28,15 +28,33 @@ func createBackup() (*exec.Cmd, error) {
 	}
 
 	cmd, err := buildLinuxTerminalCommand(executablePath, backupArgs)
-
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-
 	if err != nil {
 		return nil, err
 	}
 
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+
 	err = cmd.Start()
 	return cmd, err
+}
+
+func executablePathForRespawn() (string, error) {
+	path, err := os.Executable()
+	if err == nil {
+		if _, statErr := os.Stat(path); statErr == nil {
+			return path, nil
+		}
+	}
+
+	// VS Code/go-run can use temporary binaries that get removed; this path remains valid.
+	if _, statErr := os.Stat("/proc/self/exe"); statErr == nil {
+		return "/proc/self/exe", nil
+	}
+
+	if err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("resolved executable path no longer exists: %s", path)
 }
 
 func buildLinuxTerminalCommand(executablePath string, backupArgs []string) (*exec.Cmd, error) {
@@ -44,14 +62,14 @@ func buildLinuxTerminalCommand(executablePath string, backupArgs []string) (*exe
 		binary string
 		args   []string
 	}{
-		{binary: "x-terminal-emulator", args: []string{"-e", executablePath, backupArgs[0], backupArgs[1]}},
-		{binary: "gnome-terminal", args: []string{"--", executablePath, backupArgs[0], backupArgs[1]}},
+		{binary: "gnome-terminal", args: []string{"--wait", "--", executablePath, backupArgs[0], backupArgs[1]}},
 		{binary: "konsole", args: []string{"-e", executablePath, backupArgs[0], backupArgs[1]}},
 		{binary: "xfce4-terminal", args: []string{"-e", strings.Join(append([]string{executablePath}, backupArgs...), " ")}},
 		{binary: "xterm", args: []string{"-e", executablePath, backupArgs[0], backupArgs[1]}},
 		{binary: "kitty", args: []string{executablePath, backupArgs[0], backupArgs[1]}},
 		{binary: "alacritty", args: []string{"-e", executablePath, backupArgs[0], backupArgs[1]}},
 		{binary: "wezterm", args: []string{"start", "--always-new-process", executablePath, backupArgs[0], backupArgs[1]}},
+		{binary: "x-terminal-emulator", args: []string{"-e", executablePath, backupArgs[0], backupArgs[1]}},
 	}
 
 	for _, candidate := range terminalCandidates {
