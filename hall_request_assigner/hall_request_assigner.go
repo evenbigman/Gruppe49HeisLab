@@ -5,23 +5,86 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	"sanntidslab/peers/snapshots"
+	"sort"
 )
 
-type ElevatorsSnapshot struct {
-	HallCalls [config.NumFloors][2]bool
-	Snapshot  []snapshots.Snapshot
-}
-
-type HallAssignments map[string][config.NumFloors][2]bool
+type order [2]bool
+type HallAssignment [config.NumFloors]order
+type HallAssignments map[string]HallAssignment
 
 // Public functions
 
-func AssignHallRequests(snapshot ElevatorsSnapshot) (HallAssignments, error) {
-	for i := range snapshot.Snapshot {
-		elevator := snapshot.Snapshot[i].Elevator
+func GetAssignedHallRequests(confirmedHallCalls [config.NumFloors][2]bool, SnapshotsOnNetwork map[uint64]snapshots.Snapshot, myID uint64) (HallAssignment, error) {
+	removeObstructedElevators(&SnapshotsOnNetwork)
+	removeImpossibleStates(&SnapshotsOnNetwork)
+
+	sortedSnapshots, myIndex, err := sortSnapshotsAndFindMyIndex(SnapshotsOnNetwork, myID)
+	if err != nil {
+		return HallAssignment{}, err
+	}
+
+	snapshotJSON, err := snapshotToJSON(confirmedHallCalls, sortedSnapshots)
+	if err != nil {
+		return HallAssignment{}, fmt.Errorf("failed to marshal elevator state: %w", err)
+	}
+
+	myAssignment, err := runAssignmentAndGetMyOrders(snapshotJSON, myIndex)
+	if err != nil {
+		return HallAssignment{}, err
+	}
+
+	return myAssignment, nil
+}
+
+// Priavte functions
+
+func runAssignmentAndGetMyOrders(snapshotJSON []byte, myIndex int) (HallAssignment, error) {
+	cmd := initAssignmentCommand(snapshotJSON)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return HallAssignment{}, fmt.Errorf("hall request assignment command failed: %w (stderr: %s)", err, stderr.String())
+	}
+
+	assignmentsJSON := bytes.TrimSpace(stdout.Bytes())
+	assignments, err := parseHallAssignments(assignmentsJSON)
+	if err != nil {
+		return HallAssignment{}, fmt.Errorf("failed to unmarshal elevator assignments: %w", err)
+	}
+
+	assignmentKey := fmt.Sprintf("id_%d", myIndex+1)
+	myAssignment, ok := assignments[assignmentKey]
+	if !ok {
+		return HallAssignment{}, fmt.Errorf("missing hall assignment for %s", assignmentKey)
+	}
+
+	return myAssignment, nil
+}
+
+func initAssignmentCommand(snapshotJSON []byte) *exec.Cmd {
+	operativeSystem := runtime.GOOS
+	var cmd *exec.Cmd
+	switch operativeSystem {
+	case "windows":
+		cmd = exec.Command("./hall_request_assigner", "--input", string(snapshotJSON))
+	case "linux":
+		cmd = exec.Command("./hall_request_assigner_script", "--input", string(snapshotJSON))
+	}
+	return cmd
+}
+
+func removeImpossibleStates(snapshotsByID *map[uint64]snapshots.Snapshot) {
+	for id, snapshot := range *snapshotsByID {
+		elevator := snapshot.Elevator
 
 		atBottomFloor := elevator.CurrentFloor == 0
 		atTopFloor := elevator.CurrentFloor == config.MaxFloor
@@ -34,37 +97,46 @@ func AssignHallRequests(snapshot ElevatorsSnapshot) (HallAssignments, error) {
 			elevator.State = controller.Idle
 		}
 
-		snapshot.Snapshot[i].Elevator = elevator
+		snapshot.Elevator = elevator
+		(*snapshotsByID)[id] = snapshot
 	}
-
-	snapshotJSON, err := snapshotToJSON(snapshot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal elevator state: %w", err)
-	}
-
-	cmd := exec.Command("./hall_request_assigner_script", "--input", string(snapshotJSON))
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
-	if err != nil {
-		return nil, fmt.Errorf("hall request assignment command failed: %w (stderr: %s)", err, stderr.String())
-	}
-
-	assignmentsJSON := bytes.TrimSpace(stdout.Bytes())
-
-	assignments, err := parseHallAssignments(assignmentsJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal elevator assignments: %w", err)
-	}
-
-	return assignments, nil
 }
 
-// Private functions
+func removeObstructedElevators(snapshotsByID *map[uint64]snapshots.Snapshot) {
+	for id, snapshot := range *snapshotsByID {
+		if snapshot.Elevator.State == controller.Obstructed {
+			delete(*snapshotsByID, id)
+		}
+	}
+}
+
+func sortSnapshotsAndFindMyIndex(snapshotsByID map[uint64]snapshots.Snapshot, myID uint64) ([]snapshots.Snapshot, int, error) {
+	ids := make([]uint64, 0, len(snapshotsByID))
+	for id := range snapshotsByID {
+		ids = append(ids, id)
+	}
+
+	sortedIDs := ids
+	sort.Slice(sortedIDs, func(i, j int) bool { return ids[i] < ids[j] })
+
+	myIndex := -1
+	for i, id := range sortedIDs {
+		if id == myID {
+			myIndex = i
+			break
+		}
+	}
+	if myIndex == -1 {
+		return nil, -1, fmt.Errorf("could not find my id %d in sorted ids", myID)
+	}
+
+	sortedSnapshots := make([]snapshots.Snapshot, 0, len(ids))
+	for _, id := range ids {
+		sortedSnapshots = append(sortedSnapshots, snapshotsByID[id])
+	}
+
+	return sortedSnapshots, myIndex, nil
+}
 
 func statusToString(status controller.ElevatorState) (string, error) {
 	switch status {
@@ -92,10 +164,10 @@ func directionToString(state controller.ElevatorState) (string, error) {
 	}
 }
 
-func snapshotToJSON(snapshot ElevatorsSnapshot) ([]byte, error) {
-	states := make(map[string]any, len(snapshot.Snapshot))
+func snapshotToJSON(hallCalls [config.NumFloors][2]bool, snapshotsList []snapshots.Snapshot) ([]byte, error) {
+	states := make(map[string]any, len(snapshotsList))
 
-	for i, snap := range snapshot.Snapshot {
+	for i, snap := range snapshotsList {
 		elevator := snap.Elevator
 		status, err := statusToString(elevator.State)
 		if err != nil {
@@ -116,7 +188,7 @@ func snapshotToJSON(snapshot ElevatorsSnapshot) ([]byte, error) {
 	}
 
 	payload := map[string]any{
-		"hallRequests": snapshot.HallCalls,
+		"hallRequests": hallCalls,
 		"states":       states,
 	}
 

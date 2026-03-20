@@ -7,80 +7,52 @@ package main
 import (
 	//	backup "sanntidslab/backup_handler"
 
-	"fmt"
 	"log"
+	"maps"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	hallrequestassigner "sanntidslab/hall_request_assigner"
 	"sanntidslab/peers"
 	"sanntidslab/peers/snapshots"
-	"sort"
 )
 
-func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
-	mySnapshot, _ := pm.GetMySnapshot()
-	if mySnapshot.Elevator.State == controller.Obstructed {
-		return
-	}
-	connectedSnapshots := pm.GetConnectedSnapshots()
-	myID := peers.GetMyID()
-
-	snapshotByID := make(map[uint64]snapshots.Snapshot, len(connectedSnapshots)+1)
-	snapshotByID[myID] = mySnapshot
-	for id, snapshot := range connectedSnapshots {
-		if snapshot.Elevator.State != controller.Obstructed {
-			snapshotByID[id] = snapshot
-		}
-	}
-
-	ids := make([]uint64, 0, len(snapshotByID))
-	for id := range snapshotByID {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-
-	myIndex := -1
-	for i, id := range ids {
-		if id == myID {
-			myIndex = i
-			break
-		}
-	}
-	if myIndex == -1 {
-		log.Printf("could not find my id %d in sorted ids", myID)
-		return
-	}
-
-	allSnapshots := make([]snapshots.Snapshot, 0, len(ids))
-	for _, id := range ids {
-		allSnapshots = append(allSnapshots, snapshotByID[id])
-	}
-
+func printElevatorStates(pm *peers.PeerManager) {
 	log.Println("My elevator: ")
-	log.Println(mySnapshot)
+	log.Println(pm.GetMySnapshot())
 
 	log.Println("Connected elevators: ")
-	log.Println(connectedSnapshots)
+	log.Println(pm.GetConnectedSnapshots())
+}
 
-	elevatorsSnapshot := hallrequestassigner.ElevatorsSnapshot{
-		HallCalls: state.ConfirmedHallOrders,
-		Snapshot:  allSnapshots,
+func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
+	ms, _ := pm.GetMySnapshot()
+	if ms.Elevator.State == controller.Obstructed {
+		return
 	}
+	myID := peers.GetMyID()
 
-	hallAssignments, err := hallrequestassigner.AssignHallRequests(elevatorsSnapshot)
+	msById := make(map[uint64]snapshots.Snapshot)
+	msById[myID] = ms
+
+	csByID := pm.GetConnectedSnapshots()
+
+	allSnapshotsByID := make(map[uint64]snapshots.Snapshot, len(csByID)+1)
+	maps.Copy(allSnapshotsByID, msById)
+	maps.Copy(allSnapshotsByID, csByID)
+
+	myOrders, err := hallrequestassigner.GetAssignedHallRequests(state.ConfirmedHallOrders, allSnapshotsByID, myID)
 	if err != nil {
 		log.Printf("error assigning hall requests: %v", err)
 		panic("could not get hall assignments")
 	}
 
-	assignmentKey := fmt.Sprintf("id_%d", myIndex+1)
-	myOrders, ok := hallAssignments[assignmentKey]
-	if !ok {
-		log.Printf("missing hall assignment for %s", assignmentKey)
-		return
+	// Convert HallAssignment to controller's HallOrders type by copying values
+	var convertedOrders [config.NumFloors][2]bool
+	for i, order := range myOrders {
+		convertedOrders[i] = order
 	}
 
-	ec.AssignHallOrders(myOrders)
+	ec.AssignHallOrders(convertedOrders)
 }
 
 func main() {
