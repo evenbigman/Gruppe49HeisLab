@@ -132,7 +132,7 @@ func (ec *ElevatorController) InitElevator(port ...string) {
 		ec.elevator.CurrentFloor = elevio.GetFloor()
 		ec.stateLock.Unlock()
 
-		state := ec.GetElevatorState()
+		state := ec.GetElevatorValues()
 		if state.CurrentFloor == -1 {
 			ec.closeDoor()
 			ec.elevatorDriveDown()
@@ -156,11 +156,11 @@ func (ec *ElevatorController) InitElevatorWithStates(elevator Elevator, port ...
 	ec.InitElevator(p)
 }
 
-func (ec *ElevatorController) SetGlobalHallOrders(confirmedHallOrders HallOrders_t) {
+func (ec *ElevatorController) SetConfirmedHallOrders(confirmedHallOrders HallOrders_t) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.ConfirmedHallOrders = confirmedHallOrders
-	ec.notifyState()
+	ec.notifyElevator()
 	ec.notifyHallOrders()
 }
 
@@ -174,7 +174,7 @@ func (ec *ElevatorController) SetPressedHallButtons(pressedButtons HallOrders_t)
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.PressedHallButtons = pressedButtons
-	ec.notifyState()
+	ec.notifyElevator()
 }
 
 func (ec *ElevatorController) SetPressedHallButtonAtFloor(floor int, direction directions, value bool) {
@@ -198,8 +198,7 @@ func (ec *ElevatorController) SetCabOrders(confirmedCabOrders CabOrders_t) {
 	ec.notifyCabOrders()
 }
 
-func (ec *ElevatorController) GetElevatorState() Elevator {
-	//locking to ensure no updates happen while it reads the state of the elevator
+func (ec *ElevatorController) GetElevatorValues() Elevator {
 	ec.stateLock.RLock()
 	defer ec.stateLock.RUnlock()
 	return ec.elevator
@@ -217,7 +216,7 @@ the relevant subscribers with the notify-functions.
 
 ********************************************************************************/
 
-func (ec *ElevatorController) SubscribeState() <-chan struct{} { // NOTE: might be better with a subscirbe elevator as name, as it is inteded to be used when the elevator in general gets an update
+func (ec *ElevatorController) SubscribeElevator() <-chan struct{} { // NOTE: might be better with a subscirbe elevator as name, as it is inteded to be used when the elevator in general gets an update
 	return ec.addSubscriber(&ec.stateChangeSubscribers)
 }
 
@@ -249,7 +248,7 @@ func (ec *ElevatorController) UnsubscribeFloor(subber <-chan struct{}) {
 	ec.removeSubscriber(&ec.floorSubscribers, subber)
 }
 
-func (ec *ElevatorController) UnsubscribeState(subber <-chan struct{}) {
+func (ec *ElevatorController) UnsubscribeElevator(subber <-chan struct{}) {
 	ec.removeSubscriber(&ec.stateChangeSubscribers, subber)
 }
 
@@ -276,7 +275,7 @@ func (ec *ElevatorController) notifyFloor() {
 	ec.notify(&ec.floorSubscribers)
 }
 
-func (ec *ElevatorController) notifyState() { // NOTE: might be better with a notify elevator as name, as it is inteded to be used when the elevator in general gets an update
+func (ec *ElevatorController) notifyElevator() { // NOTE: might be better with a notify elevator as name, as it is inteded to be used when the elevator in general gets an update
 	ec.notify(&ec.stateChangeSubscribers)
 }
 
@@ -340,18 +339,18 @@ func (ec *ElevatorController) pollElevatorState() {
 
 				ec.notifyCabButton()
 			}
-			ec.notifyState()
+			ec.notifyElevator()
 
 		case v := <-floor:
 			ec.stateLock.Lock()
 			ec.elevator.CurrentFloor = v
 			ec.stateLock.Unlock()
 			ec.notifyFloor()
-			ec.notifyState()
+			ec.notifyElevator()
 
 		case <-obstruction:
 			ec.notifyObstruciton()
-			ec.notifyState()
+			ec.notifyElevator()
 
 		}
 	}
@@ -361,7 +360,7 @@ func (ec *ElevatorController) setState(state ElevatorState_t) {
 	ec.stateLock.Lock()
 	defer ec.stateLock.Unlock()
 	ec.elevator.State = state
-	ec.notifyState()
+	ec.notifyElevator()
 }
 
 func (ec *ElevatorController) completeWaitingOrders() {
@@ -372,7 +371,7 @@ func (ec *ElevatorController) completeWaitingOrders() {
 	for {
 		select {
 		case <-floorCh:
-			state := ec.GetElevatorState()
+			state := ec.GetElevatorValues()
 
 			switch state.State {
 			case MovingUp:
@@ -392,7 +391,7 @@ func (ec *ElevatorController) completeWaitingOrders() {
 }
 
 func (ec *ElevatorController) moreOrdersAbove() bool {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 
 	if state.CurrentFloor == maxFloor {
 		return false
@@ -410,7 +409,7 @@ func (ec *ElevatorController) moreOrdersAbove() bool {
 }
 
 func (ec *ElevatorController) moreHallOrdersAbove() bool {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	floorAbove := state.CurrentFloor + 1
 
 	for _, orders := range state.AssignedHallOrders[floorAbove:] {
@@ -425,7 +424,7 @@ func (ec *ElevatorController) moreHallOrdersAbove() bool {
 }
 
 func (ec *ElevatorController) moreCabOrdersAbove() bool {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	floorAbove := state.CurrentFloor + 1
 
 	if state.CurrentFloor == maxFloor {
@@ -444,7 +443,7 @@ func (ec *ElevatorController) moreCabOrdersAbove() bool {
 }
 
 func (ec *ElevatorController) moreOrdersBelow() bool {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 
 	if state.CurrentFloor == 0 {
 		return false
@@ -461,7 +460,7 @@ func (ec *ElevatorController) moreOrdersBelow() bool {
 }
 
 func (ec *ElevatorController) moreHallOrdersBelow() bool {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 
 	if state.CurrentFloor == 0 {
 		return false
@@ -479,7 +478,7 @@ func (ec *ElevatorController) moreHallOrdersBelow() bool {
 }
 
 func (ec *ElevatorController) moreCabOrdersBelow() bool {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 
 	if state.CurrentFloor == 0 {
 		return false
@@ -494,7 +493,7 @@ func (ec *ElevatorController) moreCabOrdersBelow() bool {
 }
 
 func (ec *ElevatorController) moreOrders() bool {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	// NOTE: might change to depend on other functions as some of the checks are already in functions
 	for _, orders := range state.AssignedHallOrders {
 		for _, orderActive := range orders {
@@ -514,7 +513,7 @@ func (ec *ElevatorController) moreOrders() bool {
 }
 
 func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	floor := state.CurrentFloor
 
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][up] {
@@ -551,7 +550,7 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingUp() {
 }
 
 func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	floor := state.CurrentFloor
 
 	if state.CabOrders[floor] || state.AssignedHallOrders[floor][down] {
@@ -589,7 +588,7 @@ func (ec *ElevatorController) handleArrivalAtFloorGoingDown() {
 
 func (ec *ElevatorController) handleNewCabOrder() {
 	//should keep moving up only if there are more cab orders above, and vice versa for down
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 
 	moving := (state.State == MovingDown) || (state.State == MovingUp)
 
@@ -624,7 +623,7 @@ func (ec *ElevatorController) handleNewCabOrder() {
 }
 
 func (ec *ElevatorController) handleNewHallOrder() {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	floor := state.CurrentFloor
 
 	switch state.State {
@@ -637,7 +636,7 @@ func (ec *ElevatorController) handleNewHallOrder() {
 	case DoorOpenHeadingUp:
 		return
 	case Idle:
-		state = ec.GetElevatorState()
+		state = ec.GetElevatorValues()
 		if state.AssignedHallOrders[floor][up] {
 			ec.setState(MovingUp)
 			ec.handleArrivalAtFloorGoingUp()
@@ -702,7 +701,7 @@ func (ec *ElevatorController) openDoor() error {
 }
 
 func (ec *ElevatorController) closeDoor() {
-	savedState := ec.GetElevatorState()
+	savedState := ec.GetElevatorValues()
 	obstrucitonCh := ec.SubscribeObstruction()
 	defer ec.UnsubscribeObstruction(obstrucitonCh)
 
@@ -746,7 +745,7 @@ func (ec *ElevatorController) closeDoor() {
 }
 
 func (ec *ElevatorController) openAndCloseDoorAtcurrentFloor() error {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	ec.stopElevator()
 	err := ec.openDoor()
 	if err != nil {
@@ -765,7 +764,7 @@ func (ec *ElevatorController) openAndCloseDoorAtcurrentFloor() error {
 	time.Sleep(doorOpenTime)
 	ec.closeDoor()
 
-	state = ec.GetElevatorState()
+	state = ec.GetElevatorValues()
 	switch state.State {
 	case DoorOpenHeadingUp:
 		ec.setState(MovingUp)
@@ -812,7 +811,7 @@ func (ec *ElevatorController) handleLights() {
 }
 
 func (ec *ElevatorController) handleCabLights() {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	for floor, order := range state.CabOrders {
 		elevio.SetButtonLamp(elevio.BT_Cab, floor, order)
 	}
@@ -820,7 +819,7 @@ func (ec *ElevatorController) handleCabLights() {
 }
 
 func (ec *ElevatorController) handleHallLights() {
-	state := ec.GetElevatorState()
+	state := ec.GetElevatorValues()
 	for floor, orders := range state.ConfirmedHallOrders {
 		for i, value := range orders {
 			elevio.SetButtonLamp(elevio.ButtonType(i), floor, value)
@@ -834,7 +833,7 @@ func (ec *ElevatorController) clearCabOrder(floor int) {
 	ec.elevator.CabOrders[floor] = false
 	ec.elevator.PressedCabButtons[floor] = false
 	ec.notifyCabOrders()
-	ec.notifyState()
+	ec.notifyElevator()
 }
 
 func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
@@ -843,25 +842,25 @@ func (ec *ElevatorController) clearHallorder(floor int, direction directions) {
 	ec.elevator.AssignedHallOrders[floor][direction] = false
 	ec.elevator.PressedHallButtons[floor][direction] = false
 	ec.notifyHallOrders()
-	ec.notifyState()
+	ec.notifyElevator()
 }
 
 func (ec *ElevatorController) watchdogMotor() {
 	floorCh := ec.SubscribeFloor()
-	stateCh := ec.SubscribeState()
+	stateCh := ec.SubscribeElevator()
 	timeout := time.NewTimer(motorTimeout)
 
 	for {
 		select {
 		case <-stateCh:
-			state := ec.GetElevatorState()
+			state := ec.GetElevatorValues()
 			if state.State != MotorFailure {
 				timeout.Reset(motorTimeout)
 			}
 		case <-floorCh:
 			timeout.Reset(motorTimeout)
 		case <-timeout.C:
-			state := ec.GetElevatorState()
+			state := ec.GetElevatorValues()
 			if state.State == MovingUp || state.State == MovingDown {
 				ec.handleMotorFailure()
 			} else {
@@ -877,11 +876,11 @@ func (ec *ElevatorController) handleMotorFailure() {
 	fmt.Println("Motor failed")
 	floorCh := ec.SubscribeFloor()
 	defer ec.UnsubscribeFloor(floorCh)
-	savedState := ec.GetElevatorState()
+	savedState := ec.GetElevatorValues()
 	retryTimer := time.NewTimer(motorRetryTime)
 
 	ec.setState(MotorFailure)
-	ec.notifyState()
+	ec.notifyElevator()
 
 retry:
 	for {

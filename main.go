@@ -82,11 +82,11 @@ func main() {
 		log.Println("Started fresh elevator")
 		ec.InitElevator()
 	}
-	myElevatorState := ec.GetElevatorState()
+	myElevatorState := ec.GetElevatorValues()
 	pm.SetMySnapshot(myElevatorState)
 
 	cabButtonCh := ec.SubscribeCabButtons()
-	stateCh := ec.SubscribeState()
+	stateCh := ec.SubscribeElevator()
 
 	ec.Start()
 	log.Println("Started elevator controller")
@@ -96,24 +96,24 @@ func main() {
 		case <-pm.UnconfirmedOrderChangeCh:
 			orders := pm.GetUnconfirmedOrders()
 			ec.SetPressedHallButtons(orders)
-			state := ec.GetElevatorState()
+			state := ec.GetElevatorValues()
 			mustAssignHallOrders(pm, ec, state)
 
 		case <-pm.ConfirmedOrderChangeCh:
 			orders := pm.GetConfirmedOrders()
-			ec.SetGlobalHallOrders(orders)
-			state := ec.GetElevatorState()
+			ec.SetConfirmedHallOrders(orders)
+			state := ec.GetElevatorValues()
 			mustAssignHallOrders(pm, ec, state)
 
 		case <-pm.DisconnectedPeerCh:
-			state := ec.GetElevatorState()
+			state := ec.GetElevatorValues()
 			mustAssignHallOrders(pm, ec, state)
 
 		case <-cabButtonCh:
 			log.Println("Cab press")
 			if pm.ImOnline() {
 				go func() { //Wait for ack
-					stateToAck := ec.GetElevatorState()
+					stateToAck := ec.GetElevatorValues()
 					err := pm.WaitForAck(stateToAck, config.TimeoutAck)
 					if err != nil {
 						log.Println(err)
@@ -124,14 +124,14 @@ func main() {
 					}
 				}()
 			} else { //Go solo
-				state := ec.GetElevatorState()
+				state := ec.GetElevatorValues()
 				ec.SetCabOrders(state.PressedCabButtons)
 				state.CabOrders = state.PressedCabButtons
 				pm.SetMySnapshot(state)
 			}
 		case <-stateCh:
 			//Blir knapper satt her?
-			state := ec.GetElevatorState()
+			state := ec.GetElevatorValues()
 			pm.SetMySnapshot(state)
 			mustAssignHallOrders(pm, ec, state)
 		}
