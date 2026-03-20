@@ -35,7 +35,15 @@ func main() {
 
 	ec.Start()
 	log.Println("Started elevator controller")
-
+	
+	// Take cab orders that you previously had before crashing
+	if err == nil {
+		elevator := ec.GetElevatorValues()
+		ec.SetCabOrders(elevator.PressedCabButtons)
+		elevator.CabOrders = elevator.PressedCabButtons
+		pm.SetMySnapshot(elevator)
+	}
+	
 	for {
 		select {
 		case <-pm.UnconfirmedOrderChangeCh: //someone presses a hall button
