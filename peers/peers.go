@@ -105,22 +105,37 @@ func (pm *PeerManager) Run() error {
 
 				connectedPeers := 0
 				var mutualUnconfirmedOrders [config.NumFloors][2]int
-				for id, snapshot := range msg.Snapshots{
+				var mergedPressedButtons [config.NumFloors][2]bool
+				savedConfirmedOrders := pm.GetConfirmedOrders()
+
+				for i := range mergedPressedButtons {
+					for j := range mergedPressedButtons[i] {
+						if savedConfirmedOrders[i][j] {
+							mergedPressedButtons[i][j] = true
+						}
+					}
+				}
+
+				for id, snapshot := range msg.Snapshots {
 					s, err := pm.GetStatus(id)
-					if err != nil && id != pm.myID{
+					if err != nil && id != pm.myID {
 						continue
 					}
-					if s.Connected || id == pm.myID{
+					if s.Connected || id == pm.myID {
 						connectedPeers++
-						if UnconfirmedOrderExists(snapshot) {
-							newOrders := snapshot.Elevator.PressedHallButtons
-							pm.SetUnconfirmedOrders(newOrders)
-							pm.UnconfirmedOrderChangeCh <- struct{}{}
-						}
-						for i := range mutualUnconfirmedOrders{
-							for j := range mutualUnconfirmedOrders[i]{
-								if snapshot.Elevator.PressedHallButtons[i][j]{
-									mutualUnconfirmedOrders[i][j]++	
+						for i := range mergedPressedButtons {
+							for j := range mergedPressedButtons[i] {
+								if savedConfirmedOrders[i][j] {
+									// AND
+									mergedPressedButtons[i][j] = mergedPressedButtons[i][j] && snapshot.Elevator.PressedHallButtons[i][j]
+								} else {
+									//Or
+									if snapshot.Elevator.PressedHallButtons[i][j] {
+										mergedPressedButtons[i][j] = true
+									}
+								}
+								if snapshot.Elevator.PressedHallButtons[i][j] {
+									mutualUnconfirmedOrders[i][j]++
 								} else {
 									mutualUnconfirmedOrders[i][j]--
 								}
@@ -129,12 +144,16 @@ func (pm *PeerManager) Run() error {
 					}
 				}
 
-				var confirmedOrders [config.NumFloors][2]bool
-				savedConfirmedOrders := pm.GetConfirmedOrders()
+				if !orderMatrixEqual(mergedPressedButtons, savedConfirmedOrders) {
+					pm.SetUnconfirmedOrders(mergedPressedButtons)
+					pm.UnconfirmedOrderChangeCh <- struct{}{}
+				}
 
-				for i := range confirmedOrders{
-					for j := range confirmedOrders[i]{
-						if connectedPeers != 0{
+				var confirmedOrders [config.NumFloors][2]bool
+
+				for i := range confirmedOrders {
+					for j := range confirmedOrders[i] {
+						if connectedPeers != 0 {
 							switch mutualUnconfirmedOrders[i][j] {
 							case connectedPeers:
 								confirmedOrders[i][j] = true
@@ -147,7 +166,7 @@ func (pm *PeerManager) Run() error {
 					}
 				}
 
-				if !orderMatrixEqual(confirmedOrders, savedConfirmedOrders){
+				if !orderMatrixEqual(confirmedOrders, savedConfirmedOrders) {
 					pm.SetConfirmedOrders(confirmedOrders)
 					pm.ConfirmedOrderChangeCh <- struct{}{}
 				} 
