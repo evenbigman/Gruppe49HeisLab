@@ -113,8 +113,14 @@ func main() {
 		//snapshot, _ := pm.GetMySnapshot()
 		//log.Println("My snappshot:", snapshot.Elevator.ConfirmedHallOrders)
 		select {
-		case <-pm.OrderChangeCh:
-			orders := pm.GetOrders()
+		case <-pm.UnconfirmedOrderChangeCh:
+			orders := pm.GetUnconfirmedOrders()
+			ec.SetPressedHallButtons(orders)
+			state := ec.GetElevatorState()
+			assignHallOrders(pm, ec, &state)
+
+		case <-pm.ConfirmedOrderChangeCh:
+			orders := pm.GetConfirmedOrders()
 			ec.SetGlobalHallOrders(orders)
 			state := ec.GetElevatorState()
 			assignHallOrders(pm, ec, &state)

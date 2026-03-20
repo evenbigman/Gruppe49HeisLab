@@ -20,7 +20,8 @@ import (
 )
 
 type PeerManager struct {
-	OrderChangeCh      chan struct{}
+	ConfirmedOrderChangeCh      chan struct{}
+	UnconfirmedOrderChangeCh      chan struct{}
 	DisconnectedPeerCh chan struct{}
 	myID               uint64
 	broadcastTx        chan broadcast.Msg
@@ -31,8 +32,9 @@ type PeerManager struct {
 	lastAckedVersion   int
 	ackMutex           sync.RWMutex
 	ackNotifyCh        chan struct{}
-	hallOrderMutex     sync.RWMutex
-	hallOrders         [config.NumFloors][2]bool
+	orderMutex     sync.RWMutex
+	confirmedOrders         [config.NumFloors][2]bool
+	unconfirmedOrders         [config.NumFloors][2]bool
 }
 
 var (
@@ -43,7 +45,8 @@ var (
 func GetPeerManager() *PeerManager {
 	myID := GetMyID()
 	pm := &PeerManager{
-		OrderChangeCh:      make(chan struct{}),
+		ConfirmedOrderChangeCh:      make(chan struct{}),
+		UnconfirmedOrderChangeCh:      make(chan struct{}),
 		DisconnectedPeerCh: make(chan struct{}),
 		myID:               myID,
 		broadcastTx:        make(chan broadcast.Msg),
@@ -85,10 +88,6 @@ func (pm *PeerManager) Run() error {
 		case msg := <-pm.broadcastRx:
 			if msg.Sender != pm.myID {
 				pm.statusManager.UpdateStatus(msg.Sender)
-
-				oldSnapshots := pm.snapshotManager.GetSnapshots()
-				statuses := pm.statusManager.GetStatuses()
-
 				ackedVersion := pm.snapshotManager.MergeSnapshots(msg.Snapshots)
 
 				pm.ackMutex.Lock()
@@ -104,22 +103,54 @@ func (pm *PeerManager) Run() error {
 					pm.ackMutex.Unlock()
 				}
 
-				var connectedIds []uint64
-				for id, status := range statuses {
-					if status.Connected {
-						connectedIds = append(connectedIds, id)
+				connectedPeers := 0
+				var mutualUnconfirmedOrders [config.NumFloors][2]int
+				for id, snapshot := range msg.Snapshots{
+					s, err := pm.GetStatus(id)
+					if err != nil {
+						continue
+					}
+					if s.Connected {
+						connectedPeers++
+						if UnconfirmedOrderExists(snapshot) {
+							pm.SetUnconfirmedOrders(snapshot.Elevator.PressedHallButtons)
+							pm.UnconfirmedOrderChangeCh <- struct{}{}
+						}
+						for i := range mutualUnconfirmedOrders{
+							for j := range mutualUnconfirmedOrders[i]{
+								if snapshot.Elevator.PressedHallButtons[i][j]{
+									mutualUnconfirmedOrders[i][j]++	
+								} else {
+									mutualUnconfirmedOrders[i][j]--
+								}
+							}
+						}
 					}
 				}
-				connectedIds = append(connectedIds, pm.myID)
 
-				oldOrders := pm.GetOrders()
-				newOrders := pm.snapshotManager.ComputeOrders(oldSnapshots, connectedIds)
-				if !hallOrdersEqual(oldOrders, newOrders) {
-					pm.hallOrderMutex.Lock()
-					pm.hallOrders = newOrders
-					pm.hallOrderMutex.Unlock()
-					pm.OrderChangeCh <- struct{}{}
+				var confirmedOrders [config.NumFloors][2]bool
+				savedConfirmedOrders := pm.GetConfirmedOrders()
+				changed := false
+
+				for i := range confirmedOrders{
+					for j := range confirmedOrders[i]{
+						switch mutualUnconfirmedOrders[i][j] {
+						case connectedPeers:
+							changed = true
+							confirmedOrders[i][j] = true
+						case -connectedPeers:
+							changed = true
+							confirmedOrders[i][j] = false
+						default:
+							confirmedOrders[i][j] = savedConfirmedOrders[i][j]
+						}
+					}
 				}
+
+				if changed{
+					pm.SetConfirmedOrders(confirmedOrders)
+					pm.ConfirmedOrderChangeCh <- struct{}{}
+				} 
 			}
 
 		case <-ticker.C:
@@ -210,11 +241,43 @@ func (pm *PeerManager) SetMySnapshot(elevator controller.Elevator) error {
 	return nil
 }
 
-func (pm *PeerManager) GetOrders() [config.NumFloors][2]bool {
-	pm.hallOrderMutex.RLock()
-	defer pm.hallOrderMutex.RUnlock()
+func (pm *PeerManager) GetConfirmedOrders() [config.NumFloors][2]bool {
+	pm.orderMutex.RLock()
+	defer pm.orderMutex.RUnlock()
 
-	return pm.hallOrders
+	return pm.confirmedOrders
+}
+
+func (pm *PeerManager) SetConfirmedOrders(orders [config.NumFloors][2]bool) {
+	pm.orderMutex.Lock()
+	defer pm.orderMutex.Unlock()
+
+	pm.confirmedOrders = orders
+}
+
+func (pm *PeerManager) GetUnconfirmedOrders() [config.NumFloors][2]bool {
+	pm.orderMutex.RLock()
+	defer pm.orderMutex.RUnlock()
+
+	return pm.unconfirmedOrders
+}
+
+func (pm *PeerManager) SetUnconfirmedOrders(orders [config.NumFloors][2]bool) {
+	pm.orderMutex.Lock()
+	defer pm.orderMutex.Unlock()
+
+	pm.unconfirmedOrders = orders
+}
+
+func (pm *PeerManager) GetStatus(ID uint64) (status.Status, error){
+	statuses := pm.statusManager.GetStatuses()
+	s, statusFound := statuses[ID]
+	if !statusFound {
+		err := fmt.Errorf("Status for %d not found", ID)
+		return status.Status{}, err
+	}
+	
+	return s, nil
 }
 
 func (pm *PeerManager) ImOnline() bool {
@@ -239,7 +302,18 @@ func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
 	return snapshot, nil
 }
 
-func hallOrdersEqual(a, b [config.NumFloors][2]bool) bool {
+func UnconfirmedOrderExists(snapshot snapshots.Snapshot) bool{
+	confirmedOrders := snapshot.Elevator.ConfirmedHallOrders
+	hallButtons := snapshot.Elevator.PressedHallButtons
+
+	if !orderMatrixEqual(hallButtons, confirmedOrders){
+		return true
+	} else {
+		return false
+	}
+}
+
+func orderMatrixEqual(a, b [config.NumFloors][2]bool) bool {
 	for i := range a {
 		for j := range a[i] {
 			if a[i][j] != b[i][j] {
