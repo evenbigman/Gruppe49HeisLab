@@ -113,8 +113,11 @@ func (pm *PeerManager) Run() error {
 					if s.Connected || id == pm.myID{
 						connectedPeers++
 						if UnconfirmedOrderExists(snapshot) {
-							pm.SetUnconfirmedOrders(snapshot.Elevator.PressedHallButtons)
-							pm.UnconfirmedOrderChangeCh <- struct{}{}
+							newOrders := snapshot.Elevator.PressedHallButtons
+							if !orderMatrixEqual(newOrders, pm.GetUnconfirmedOrders()) {
+								pm.SetUnconfirmedOrders(newOrders)
+								pm.UnconfirmedOrderChangeCh <- struct{}{}
+							}
 						}
 						for i := range mutualUnconfirmedOrders{
 							for j := range mutualUnconfirmedOrders[i]{
@@ -130,16 +133,14 @@ func (pm *PeerManager) Run() error {
 
 				var confirmedOrders [config.NumFloors][2]bool
 				savedConfirmedOrders := pm.GetConfirmedOrders()
-				changed := false
 
 				for i := range confirmedOrders{
 					for j := range confirmedOrders[i]{
+						log.Printf("Connected peers: %d:" ,connectedPeers)
 						switch mutualUnconfirmedOrders[i][j] {
 						case connectedPeers:
-							changed = true
 							confirmedOrders[i][j] = true
 						case -connectedPeers:
-							changed = true
 							confirmedOrders[i][j] = false
 						default:
 							confirmedOrders[i][j] = savedConfirmedOrders[i][j]
@@ -147,7 +148,7 @@ func (pm *PeerManager) Run() error {
 					}
 				}
 
-				if changed{
+				if !orderMatrixEqual(confirmedOrders, savedConfirmedOrders){
 					pm.SetConfirmedOrders(confirmedOrders)
 					pm.ConfirmedOrderChangeCh <- struct{}{}
 				} 
