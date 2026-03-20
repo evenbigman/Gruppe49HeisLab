@@ -36,11 +36,16 @@ func main() {
 	ec.Start()
 	log.Println("Started elevator controller")
 	
-	if err == nil { // take cab orders that you previously had before crashing
-		elevator := ec.GetElevatorValues()
-		ec.SetCabOrders(elevator.PressedCabButtons)
-		elevator.CabOrders = elevator.PressedCabButtons
-		pm.SetMySnapshot(elevator)
+	// take cab orders that you previously had before crashing
+	// wait 5 seconds to wait for the elevator to init properly
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	<-timer.C
+	if err == nil {
+			elevator := ec.GetElevatorValues()
+			ec.SetCabOrders(elevator.PressedCabButtons)
+			elevator.CabOrders = elevator.PressedCabButtons
+			pm.SetMySnapshot(elevator)
 	}
 	
 	for {
