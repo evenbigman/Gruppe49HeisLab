@@ -13,12 +13,21 @@ import (
 	"slices"
 )
 
-type HallAssignment_t [config.NumFloors][2]bool
+/********************************************************************************
+**********************      Hall Request Assigner      **************************
+
+This module prepares confirmed hall orders and network snapshots for the
+external hall request assigner process, executes the assigner, and returns the
+local elevator's hall assignment.
+
+********************************************************************************/
+
+type HallAssignment_t = controller.HallOrders_t
 type HallAssignments_t map[string]HallAssignment_t
 
 // Public functions
 
-func GetAssignedHallRequests(confirmedHallCalls [config.NumFloors][2]bool, snapshotsOnNetwork map[uint64]snapshots.Snapshot_t, myID uint64) (HallAssignment_t, error) {
+func GetAssignedHallRequests(confirmedHallOrders controller.HallOrders_t, snapshotsOnNetwork map[uint64]snapshots.Snapshot_t, myID uint64) (HallAssignment_t, error) {
 	sanitizedSnapshots := sanitizeSnapshots(snapshotsOnNetwork)
 
 	sortedSnapshots, myIndex, err := sortSnapshotsAndFindMyIndex(sanitizedSnapshots, myID)
@@ -26,7 +35,7 @@ func GetAssignedHallRequests(confirmedHallCalls [config.NumFloors][2]bool, snaps
 		return HallAssignment_t{}, err
 	}
 
-	snapshotJSON, err := snapshotToJSON(confirmedHallCalls, sortedSnapshots)
+	snapshotJSON, err := snapshotToJSON(confirmedHallOrders, sortedSnapshots)
 	if err != nil {
 		return HallAssignment_t{}, fmt.Errorf("failed to marshal elevator state: %w", err)
 	}
@@ -170,7 +179,7 @@ func directionToString(state controller.ElevatorState_t) (string, error) {
 	}
 }
 
-func snapshotToJSON(hallCalls [config.NumFloors][2]bool, snapshotsList []snapshots.Snapshot_t) ([]byte, error) {
+func snapshotToJSON(hallCalls controller.HallOrders_t, snapshotsList []snapshots.Snapshot_t) ([]byte, error) {
 	states := make(map[string]any, len(snapshotsList))
 
 	for i, snap := range snapshotsList {

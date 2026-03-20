@@ -41,8 +41,7 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 		return fmt.Errorf("could not get hall assignments: %w", err)
 	}
 
-	convertedOrders := toHallOrders(myOrders)
-	filteredOrders := andHallOrders(convertedOrders, state.PressedHallButtons)
+	filteredOrders := andHallOrders(myOrders, state.PressedHallButtons)
 	ec.AssignHallOrders(filteredOrders)
 	return nil
 }
@@ -56,16 +55,8 @@ func snapshotsForAssignment(pm *peers.PeerManager, myID uint64, mySnapshot snaps
 	return allSnapshotsByID
 }
 
-func toHallOrders(orders hallrequestassigner.HallAssignment_t) [config.NumFloors][2]bool {
-	var convertedOrders [config.NumFloors][2]bool
-	for floor, floorOrders := range orders {
-		convertedOrders[floor] = floorOrders
-	}
-	return convertedOrders
-}
-
-func andHallOrders(a, b [config.NumFloors][2]bool) [config.NumFloors][2]bool {
-	var result [config.NumFloors][2]bool
+func andHallOrders(a, b controller.HallOrders_t) hallrequestassigner.HallAssignment_t {
+	var result hallrequestassigner.HallAssignment_t
 	for floor := 0; floor < config.NumFloors; floor++ {
 		for dir := 0; dir < 2; dir++ {
 			result[floor][dir] = a[floor][dir] && b[floor][dir]
