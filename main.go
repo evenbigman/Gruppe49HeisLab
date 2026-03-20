@@ -9,78 +9,69 @@ import (
 
 	"fmt"
 	"log"
+	"maps"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	hallrequestassigner "sanntidslab/hall_request_assigner"
 	"sanntidslab/peers"
 	"sanntidslab/peers/snapshots"
-	"sort"
 )
 
-func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state *controller.Elevator) {
-	mySnapshot, _ := pm.GetMySnapshot()
-	if mySnapshot.Elevator.State == controller.Obstructed {
-		return
+func mustAssignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state controller.Elevator) {
+	if err := assignHallOrders(pm, ec, state); err != nil {
+		panic(fmt.Errorf("assignHallOrders failed: %w", err))
 	}
-	connectedSnapshots := pm.GetConnectedSnapshots()
-	myID := peers.GetMyID()
+}
 
-	snapshotByID := make(map[uint64]snapshots.Snapshot, len(connectedSnapshots)+1)
-	snapshotByID[myID] = mySnapshot
-	for id, snapshot := range connectedSnapshots {
-		if snapshot.Elevator.State != controller.Obstructed {
-			snapshotByID[id] = snapshot
-		}
-	}
-
-	ids := make([]uint64, 0, len(snapshotByID))
-	for id := range snapshotByID {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-
-	myIndex := -1
-	for i, id := range ids {
-		if id == myID {
-			myIndex = i
-			break
-		}
-	}
-	if myIndex == -1 {
-		log.Printf("could not find my id %d in sorted ids", myID)
-		return
-	}
-
-	allSnapshots := make([]snapshots.Snapshot, 0, len(ids))
-	for _, id := range ids {
-		allSnapshots = append(allSnapshots, snapshotByID[id])
-	}
-
-	log.Println("My elevator: ")
-	log.Println(mySnapshot)
-
-	log.Println("Connected elevators: ")
-	log.Println(connectedSnapshots)
-
-	elevatorsSnapshot := hallrequestassigner.ElevatorsSnapshot{
-		HallCalls: state.ConfirmedHallOrders,
-		Snapshot:  allSnapshots,
-	}
-
-	hallAssignments, err := hallrequestassigner.AssignHallRequests(elevatorsSnapshot)
+func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, state controller.Elevator) error {
+	mySnapshot, err := pm.GetMySnapshot()
 	if err != nil {
-		log.Printf("error assigning hall requests: %v", err)
-		panic("could not get hall assignments")
+		return fmt.Errorf("could not get my snapshot for hall assignment: %w", err)
 	}
 
-	assignmentKey := fmt.Sprintf("id_%d", myIndex+1)
-	myOrders, ok := hallAssignments[assignmentKey]
-	if !ok {
-		log.Printf("missing hall assignment for %s", assignmentKey)
-		return
+	if mySnapshot.Elevator.State == controller.Obstructed {
+		return nil
 	}
 
-	ec.AssignHallOrders(myOrders)
+	myID := peers.GetMyID()
+	allSnapshotsByID := snapshotsForAssignment(pm, myID, mySnapshot)
+
+	myOrders, err := hallrequestassigner.GetAssignedHallRequests(state.ConfirmedHallOrders, allSnapshotsByID, myID)
+	if err != nil {
+		return fmt.Errorf("could not get hall assignments: %w", err)
+	}
+
+	convertedOrders := toHallOrders(myOrders)
+	filteredOrders := andHallOrders(convertedOrders, state.PressedHallButtons)
+	ec.AssignHallOrders(filteredOrders)
+	return nil
+}
+
+func snapshotsForAssignment(pm *peers.PeerManager, myID uint64, mySnapshot snapshots.Snapshot) map[uint64]snapshots.Snapshot {
+	allSnapshotsByID := maps.Clone(pm.GetConnectedSnapshots())
+	if allSnapshotsByID == nil {
+		allSnapshotsByID = make(map[uint64]snapshots.Snapshot, 1)
+	}
+	allSnapshotsByID[myID] = mySnapshot
+	return allSnapshotsByID
+}
+
+func toHallOrders(orders hallrequestassigner.HallAssignment_t) [config.NumFloors][2]bool {
+	var convertedOrders [config.NumFloors][2]bool
+	for floor, floorOrders := range orders {
+		convertedOrders[floor] = floorOrders
+	}
+	return convertedOrders
+}
+
+func andHallOrders(a, b [config.NumFloors][2]bool) [config.NumFloors][2]bool {
+	var result [config.NumFloors][2]bool
+	for floor := 0; floor < config.NumFloors; floor++ {
+		for dir := 0; dir < 2; dir++ {
+			result[floor][dir] = a[floor][dir] && b[floor][dir]
+		}
+	}
+	return result
 }
 
 func main() {
@@ -117,17 +108,17 @@ func main() {
 			orders := pm.GetUnconfirmedOrders()
 			ec.SetPressedHallButtons(orders)
 			state := ec.GetElevatorState()
-			assignHallOrders(pm, ec, &state)
+			mustAssignHallOrders(pm, ec, state)
 
 		case <-pm.ConfirmedOrderChangeCh:
 			orders := pm.GetConfirmedOrders()
 			ec.SetGlobalHallOrders(orders)
 			state := ec.GetElevatorState()
-			assignHallOrders(pm, ec, &state)
+			mustAssignHallOrders(pm, ec, state)
 
 		case <-pm.DisconnectedPeerCh:
 			state := ec.GetElevatorState()
-			assignHallOrders(pm, ec, &state)
+			mustAssignHallOrders(pm, ec, state)
 
 		case <-cabButtonCh:
 			log.Println("Cab press")
@@ -153,44 +144,7 @@ func main() {
 			//Blir knapper satt her?
 			state := ec.GetElevatorState()
 			pm.SetMySnapshot(state)
-			assignHallOrders(pm, ec, &state)
+			mustAssignHallOrders(pm, ec, state)
 		}
 	}
-	//	case <-buttonCh:
-	//		stateToAck := ec.GetElevatorState()
-	//		go func() {
-	//			err := pm.WaitForAck(stateToAck, config.TimeoutAck)
-	//			if err != nil {
-	//			} else {
-	//				ec.SetGlobalHallOrders(stateToAck.PressedHallButtons)
-	//				// TODO: Add hallrequest assigner
-
-	//				// START OF HALL REQUEST ASSIGNER STUFF
-	//				mySnapshot, _ := pm.GetMySnapshot()
-	//				connectedSnapshots := pm.GetConnectedSnapshots()
-
-	//				allSnapshots := make([]snapshots.Snapshot, 0, 1+len(connectedSnapshots))
-	//				allSnapshots = append(allSnapshots, mySnapshot)            // first element
-	//				allSnapshots = append(allSnapshots, connectedSnapshots...) // rest
-
-	//				elevatorsSnapshot := hallrequestassigner.ElevatorsSnapshot{
-	//					HallCalls: stateToAck.ConfirmedHallOrders,
-	//					Snapshot:  allSnapshots,
-	//				}
-
-	//				hallAssignments, _ := hallrequestassigner.AssignHallRequests(elevatorsSnapshot)
-
-	//				myOrders := hallAssignments["id_1"]
-
-	//				ec.AssignHallOrders(myOrders)
-	//				// END OF HALL REQUEST ASSIGNER STUFF
-
-	//				ec.SetCabOrders(stateToAck.PressedCabButtons)
-	//			}
-	//		}()
-	//	case <-stateCh:
-	//		state := ec.GetElevatorState()
-	//		pm.SetMySnapshot(state)
-	//	}
-	//}
 }
