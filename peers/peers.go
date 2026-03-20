@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"runtime/pprof"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	"sanntidslab/peers/broadcast"
@@ -20,42 +22,44 @@ import (
 )
 
 type PeerManager struct {
-	ConfirmedOrderChangeCh      chan struct{}
-	UnconfirmedOrderChangeCh      chan struct{}
-	DisconnectedPeerCh chan struct{}
-	myID               uint64
-	broadcastTx        chan broadcast.Msg
-	broadcastRx        chan broadcast.Msg
-	snapshotManager    *snapshots.SnapshotManager
-	statusManager      *status.StatusManager
-	initialized        bool
-	lastAckedVersion   int
-	ackMutex           sync.RWMutex
-	ackNotifyCh        chan struct{}
-	orderMutex     sync.RWMutex
-	confirmedOrders         [config.NumFloors][2]bool
-	unconfirmedOrders         [config.NumFloors][2]bool
+	ConfirmedOrderChangeCh   chan struct{}
+	UnconfirmedOrderChangeCh chan struct{}
+	DisconnectedPeerCh       chan struct{}
+	myID                     uint64
+	broadcastTx              chan broadcast.Msg
+	broadcastRx              chan broadcast.Msg
+	snapshotManager          *snapshots.SnapshotManager
+	statusManager            *status.StatusManager
+	initialized              bool
+	lastAckedVersion         int
+	ackMutex                 sync.RWMutex
+	ackNotifyCh              chan struct{}
+	orderMutex               sync.RWMutex
+	confirmedOrders          controller.HallOrders_t
+	unconfirmedOrders        controller.HallOrders_t
 }
 
 var (
-	instance *PeerManager
-	once     sync.Once
+	instance     *PeerManager
+	once         sync.Once
+	watchdog     *time.Timer
+	watchdogOnce sync.Once
 )
 
 func GetPeerManager() *PeerManager {
 	myID := GetMyID()
 	pm := &PeerManager{
-		ConfirmedOrderChangeCh:      make(chan struct{}),
-		UnconfirmedOrderChangeCh:      make(chan struct{}),
-		DisconnectedPeerCh: make(chan struct{}),
-		myID:               myID,
-		broadcastTx:        make(chan broadcast.Msg),
-		broadcastRx:        make(chan broadcast.Msg),
-		snapshotManager:    snapshots.GetSnapshotManager(myID),
-		statusManager:      status.GetStatusManager(config.ConnectionTimeThreshold, config.TimeoutInterval, config.BcastInterval),
-		initialized:        false,
-		lastAckedVersion:   0,
-		ackNotifyCh:        make(chan struct{}, 1),
+		ConfirmedOrderChangeCh:   make(chan struct{}),
+		UnconfirmedOrderChangeCh: make(chan struct{}),
+		DisconnectedPeerCh:       make(chan struct{}),
+		myID:                     myID,
+		broadcastTx:              make(chan broadcast.Msg),
+		broadcastRx:              make(chan broadcast.Msg),
+		snapshotManager:          snapshots.GetSnapshotManager(myID),
+		statusManager:            status.GetStatusManager(config.ConnectionTimeThreshold, config.TimeoutInterval, config.BcastInterval),
+		initialized:              false,
+		lastAckedVersion:         0,
+		ackNotifyCh:              make(chan struct{}, 1),
 	}
 
 	once.Do(func() {
@@ -69,6 +73,7 @@ func (pm *PeerManager) Init() {
 
 	go broadcast.Transmitter(config.BcastPort, pm.broadcastTx)
 	go broadcast.Receiver(config.BcastPort, pm.broadcastRx)
+	initWatchdog(config.WatchdogBroadcastTimeout)
 
 	pm.initialized = true
 }
@@ -105,22 +110,22 @@ func (pm *PeerManager) Run() error {
 
 				connectedPeers := 0
 				var mutualUnconfirmedOrders [config.NumFloors][2]int
-				for id, snapshot := range msg.Snapshots{
+				for id, snapshot := range msg.Snapshots {
 					s, err := pm.GetStatus(id)
-					if err != nil && id != pm.myID{
+					if err != nil && id != pm.myID {
 						continue
 					}
-					if s.Connected || id == pm.myID{
+					if s.Connected || id == pm.myID {
 						connectedPeers++
 						if UnconfirmedOrderExists(snapshot) {
 							newOrders := snapshot.Elevator.PressedHallButtons
 							pm.SetUnconfirmedOrders(newOrders)
 							pm.UnconfirmedOrderChangeCh <- struct{}{}
 						}
-						for i := range mutualUnconfirmedOrders{
-							for j := range mutualUnconfirmedOrders[i]{
-								if snapshot.Elevator.PressedHallButtons[i][j]{
-									mutualUnconfirmedOrders[i][j]++	
+						for i := range mutualUnconfirmedOrders {
+							for j := range mutualUnconfirmedOrders[i] {
+								if snapshot.Elevator.PressedHallButtons[i][j] {
+									mutualUnconfirmedOrders[i][j]++
 								} else {
 									mutualUnconfirmedOrders[i][j]--
 								}
@@ -129,12 +134,12 @@ func (pm *PeerManager) Run() error {
 					}
 				}
 
-				var confirmedOrders [config.NumFloors][2]bool
+				var confirmedOrders controller.HallOrders_t
 				savedConfirmedOrders := pm.GetConfirmedOrders()
 
-				for i := range confirmedOrders{
-					for j := range confirmedOrders[i]{
-						if connectedPeers != 0{
+				for i := range confirmedOrders {
+					for j := range confirmedOrders[i] {
+						if connectedPeers != 0 {
 							switch mutualUnconfirmedOrders[i][j] {
 							case connectedPeers:
 								confirmedOrders[i][j] = true
@@ -147,10 +152,10 @@ func (pm *PeerManager) Run() error {
 					}
 				}
 
-				if !orderMatrixEqual(confirmedOrders, savedConfirmedOrders){
+				if !orderMatrixEqual(confirmedOrders, savedConfirmedOrders) {
 					pm.SetConfirmedOrders(confirmedOrders)
 					pm.ConfirmedOrderChangeCh <- struct{}{}
-				} 
+				}
 			}
 
 		case <-ticker.C:
@@ -161,6 +166,7 @@ func (pm *PeerManager) Run() error {
 			}
 			pm.broadcastTx <- msg
 		}
+		kickWatchdog()
 	}
 }
 
@@ -209,16 +215,16 @@ func (pm *PeerManager) WaitForAck(elevator controller.Elevator, timeout time.Dur
 	}
 }
 
-func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot, error) {
+func (pm *PeerManager) GetMySnapshot() (snapshots.Snapshot_t, error) {
 	snapshot, err := pm.getSnapshot(pm.myID)
 	return snapshot, err
 }
 
-func (pm *PeerManager) GetConnectedSnapshots() map[uint64]snapshots.Snapshot {
+func (pm *PeerManager) GetConnectedSnapshots() map[uint64]snapshots.Snapshot_t {
 	statuses := pm.statusManager.GetStatuses()
 	snaps := pm.snapshotManager.GetSnapshots()
 
-	output := make(map[uint64]snapshots.Snapshot)
+	output := make(map[uint64]snapshots.Snapshot_t)
 	for id, status := range statuses {
 		if status.Connected {
 			output[id] = snaps[id]
@@ -241,42 +247,42 @@ func (pm *PeerManager) SetMySnapshot(elevator controller.Elevator) error {
 	return nil
 }
 
-func (pm *PeerManager) GetConfirmedOrders() [config.NumFloors][2]bool {
+func (pm *PeerManager) GetConfirmedOrders() controller.HallOrders_t {
 	pm.orderMutex.RLock()
 	defer pm.orderMutex.RUnlock()
 
 	return pm.confirmedOrders
 }
 
-func (pm *PeerManager) SetConfirmedOrders(orders [config.NumFloors][2]bool) {
+func (pm *PeerManager) SetConfirmedOrders(orders controller.HallOrders_t) {
 	pm.orderMutex.Lock()
 	defer pm.orderMutex.Unlock()
 
 	pm.confirmedOrders = orders
 }
 
-func (pm *PeerManager) GetUnconfirmedOrders() [config.NumFloors][2]bool {
+func (pm *PeerManager) GetUnconfirmedOrders() controller.HallOrders_t {
 	pm.orderMutex.RLock()
 	defer pm.orderMutex.RUnlock()
 
 	return pm.unconfirmedOrders
 }
 
-func (pm *PeerManager) SetUnconfirmedOrders(orders [config.NumFloors][2]bool) {
+func (pm *PeerManager) SetUnconfirmedOrders(orders controller.HallOrders_t) {
 	pm.orderMutex.Lock()
 	defer pm.orderMutex.Unlock()
 
 	pm.unconfirmedOrders = orders
 }
 
-func (pm *PeerManager) GetStatus(ID uint64) (status.Status, error){
+func (pm *PeerManager) GetStatus(ID uint64) (status.Status, error) {
 	statuses := pm.statusManager.GetStatuses()
 	s, statusFound := statuses[ID]
 	if !statusFound {
 		err := fmt.Errorf("Status for %d not found", ID)
 		return status.Status{}, err
 	}
-	
+
 	return s, nil
 }
 
@@ -289,31 +295,31 @@ func (pm *PeerManager) ImOnline() bool {
 	}
 }
 
-func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot, error) {
+func (pm *PeerManager) getSnapshot(ID uint64) (snapshots.Snapshot_t, error) {
 	sm := pm.snapshotManager
 	snaps := sm.GetSnapshots()
 
 	snapshot, ok := snaps[ID]
 	if !ok {
 		err := fmt.Errorf("Snapshot for ID: %d not found", ID)
-		return snapshots.Snapshot{}, err
+		return snapshots.Snapshot_t{}, err
 	}
 
 	return snapshot, nil
 }
 
-func UnconfirmedOrderExists(snapshot snapshots.Snapshot) bool{
+func UnconfirmedOrderExists(snapshot snapshots.Snapshot_t) bool{
 	confirmedOrders := snapshot.Elevator.ConfirmedHallOrders
 	hallButtons := snapshot.Elevator.PressedHallButtons
 
-	if !orderMatrixEqual(hallButtons, confirmedOrders){
+	if !orderMatrixEqual(hallButtons, confirmedOrders) {
 		return true
 	} else {
 		return false
 	}
 }
 
-func orderMatrixEqual(a, b [config.NumFloors][2]bool) bool {
+func orderMatrixEqual(a, b controller.HallOrders_t) bool {
 	for i := range a {
 		for j := range a[i] {
 			if a[i][j] != b[i][j] {
@@ -339,4 +345,18 @@ func GetMyID() uint64 { //Get mac address
 		}
 	}
 	return 0
+}
+
+func initWatchdog(timeout time.Duration) {
+	watchdogOnce.Do(func() {
+		watchdog = time.AfterFunc(timeout, func() {
+			fmt.Fprintln(os.Stderr, "watchdog: timeout exceeded, shutting down")
+			pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			os.Exit(1)
+		})
+	})
+}
+
+func kickWatchdog() {
+	watchdog.Reset(config.ConnectionTimeThreshold)
 }

@@ -18,7 +18,7 @@ type HallAssignments_t map[string]HallAssignment_t
 
 // Public functions
 
-func GetAssignedHallRequests(confirmedHallCalls [config.NumFloors][2]bool, snapshotsOnNetwork map[uint64]snapshots.Snapshot, myID uint64) (HallAssignment_t, error) {
+func GetAssignedHallRequests(confirmedHallCalls [config.NumFloors][2]bool, snapshotsOnNetwork map[uint64]snapshots.Snapshot_t, myID uint64) (HallAssignment_t, error) {
 	sanitizedSnapshots := sanitizeSnapshots(snapshotsOnNetwork)
 
 	sortedSnapshots, myIndex, err := sortSnapshotsAndFindMyIndex(sanitizedSnapshots, myID)
@@ -88,14 +88,14 @@ func initAssignmentCommand(snapshotJSON []byte) (*exec.Cmd, error) {
 	}
 }
 
-func sanitizeSnapshots(snapshotsByID map[uint64]snapshots.Snapshot) map[uint64]snapshots.Snapshot {
+func sanitizeSnapshots(snapshotsByID map[uint64]snapshots.Snapshot_t) map[uint64]snapshots.Snapshot_t {
 	sanitized := maps.Clone(snapshotsByID)
 	removeObstructedElevators(sanitized)
 	removeImpossibleStates(sanitized)
 	return sanitized
 }
 
-func removeImpossibleStates(snapshotsByID map[uint64]snapshots.Snapshot) {
+func removeImpossibleStates(snapshotsByID map[uint64]snapshots.Snapshot_t) {
 	for id, snapshot := range snapshotsByID {
 		elevator := snapshot.Elevator
 
@@ -115,7 +115,7 @@ func removeImpossibleStates(snapshotsByID map[uint64]snapshots.Snapshot) {
 	}
 }
 
-func removeObstructedElevators(snapshotsByID map[uint64]snapshots.Snapshot) {
+func removeObstructedElevators(snapshotsByID map[uint64]snapshots.Snapshot_t) {
 	for id, snapshot := range snapshotsByID {
 		if snapshot.Elevator.State == controller.Obstructed {
 			delete(snapshotsByID, id)
@@ -123,7 +123,7 @@ func removeObstructedElevators(snapshotsByID map[uint64]snapshots.Snapshot) {
 	}
 }
 
-func sortSnapshotsAndFindMyIndex(snapshotsByID map[uint64]snapshots.Snapshot, myID uint64) ([]snapshots.Snapshot, int, error) {
+func sortSnapshotsAndFindMyIndex(snapshotsByID map[uint64]snapshots.Snapshot_t, myID uint64) ([]snapshots.Snapshot_t, int, error) {
 	ids := make([]uint64, 0, len(snapshotsByID))
 	for id := range snapshotsByID {
 		ids = append(ids, id)
@@ -136,7 +136,7 @@ func sortSnapshotsAndFindMyIndex(snapshotsByID map[uint64]snapshots.Snapshot, my
 		return nil, -1, fmt.Errorf("could not find my id %d in sorted ids", myID)
 	}
 
-	sortedSnapshots := make([]snapshots.Snapshot, len(ids))
+	sortedSnapshots := make([]snapshots.Snapshot_t, len(ids))
 	for i, id := range ids {
 		sortedSnapshots[i] = snapshotsByID[id]
 	}
@@ -144,7 +144,7 @@ func sortSnapshotsAndFindMyIndex(snapshotsByID map[uint64]snapshots.Snapshot, my
 	return sortedSnapshots, myIndex, nil
 }
 
-func statusToString(status controller.ElevatorState) (string, error) {
+func statusToString(status controller.ElevatorState_t) (string, error) {
 	switch status {
 	case controller.Idle:
 		return "idle", nil
@@ -157,7 +157,7 @@ func statusToString(status controller.ElevatorState) (string, error) {
 	}
 }
 
-func directionToString(state controller.ElevatorState) (string, error) {
+func directionToString(state controller.ElevatorState_t) (string, error) {
 	switch state {
 	case controller.MovingUp, controller.DoorOpenHeadingUp:
 		return "up", nil
@@ -170,7 +170,7 @@ func directionToString(state controller.ElevatorState) (string, error) {
 	}
 }
 
-func snapshotToJSON(hallCalls [config.NumFloors][2]bool, snapshotsList []snapshots.Snapshot) ([]byte, error) {
+func snapshotToJSON(hallCalls [config.NumFloors][2]bool, snapshotsList []snapshots.Snapshot_t) ([]byte, error) {
 	states := make(map[string]any, len(snapshotsList))
 
 	for i, snap := range snapshotsList {

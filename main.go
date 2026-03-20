@@ -47,10 +47,10 @@ func assignHallOrders(pm *peers.PeerManager, ec *controller.ElevatorController, 
 	return nil
 }
 
-func snapshotsForAssignment(pm *peers.PeerManager, myID uint64, mySnapshot snapshots.Snapshot) map[uint64]snapshots.Snapshot {
+func snapshotsForAssignment(pm *peers.PeerManager, myID uint64, mySnapshot snapshots.Snapshot_t) map[uint64]snapshots.Snapshot {
 	allSnapshotsByID := maps.Clone(pm.GetConnectedSnapshots())
 	if allSnapshotsByID == nil {
-		allSnapshotsByID = make(map[uint64]snapshots.Snapshot, 1)
+		allSnapshotsByID = make(map[uint64]snapshots.Snapshot_t, 1)
 	}
 	allSnapshotsByID[myID] = mySnapshot
 	return allSnapshotsByID
@@ -101,8 +101,6 @@ func main() {
 	log.Println("Started elevator controller")
 
 	for {
-		//snapshot, _ := pm.GetMySnapshot()
-		//log.Println("My snappshot:", snapshot.Elevator.ConfirmedHallOrders)
 		select {
 		case <-pm.UnconfirmedOrderChangeCh:
 			orders := pm.GetUnconfirmedOrders()
