@@ -1,16 +1,18 @@
 package main
+
 import (
-	backup "sanntidslab/backup_handler"
 	"fmt"
 	"log"
 	"maps"
-	"time"
+	backup "sanntidslab/backup_handler"
 	"sanntidslab/config"
 	"sanntidslab/controller"
 	hallrequestassigner "sanntidslab/hall_request_assigner"
 	"sanntidslab/peers"
 	"sanntidslab/peers/snapshots"
+	"time"
 )
+
 func main() {
 	backup.Init()
 
@@ -36,21 +38,28 @@ func main() {
 
 	ec.Start()
 	log.Println("Started elevator controller")
-	
+
 	// take cab orders that you previously had before crashing
 	// wait 5 seconds to wait for the elevator to init properly
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
 	<-timer.C
 	if err == nil {
-			elevator := ec.GetElevatorValues()
-			ec.SetCabOrders(elevator.PressedCabButtons)
-			elevator.CabOrders = elevator.PressedCabButtons
-			pm.SetMySnapshot(elevator)
+		elevator := ec.GetElevatorValues()
+		ec.SetCabOrders(elevator.PressedCabButtons)
+		elevator.CabOrders = elevator.PressedCabButtons
+		pm.SetMySnapshot(elevator)
 	}
-	
+
+	orderUpdateTicker := time.NewTicker(5 * time.Second)
+	defer orderUpdateTicker.Stop()
+
 	for {
 		select {
+		case <-orderUpdateTicker.C:
+			state := ec.GetElevatorValues()
+			mustAssignHallOrders(pm, ec, state)
+
 		case <-pm.UnconfirmedOrderChangeCh: // someone presses a hall button
 			orders := pm.GetUnconfirmedOrders()
 			ec.SetPressedHallButtons(orders)
