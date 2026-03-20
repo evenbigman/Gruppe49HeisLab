@@ -114,10 +114,8 @@ func (pm *PeerManager) Run() error {
 						connectedPeers++
 						if UnconfirmedOrderExists(snapshot) {
 							newOrders := snapshot.Elevator.PressedHallButtons
-							if !orderMatrixEqual(newOrders, pm.GetUnconfirmedOrders()) {
-								pm.SetUnconfirmedOrders(newOrders)
-								pm.UnconfirmedOrderChangeCh <- struct{}{}
-							}
+							pm.SetUnconfirmedOrders(newOrders)
+							pm.UnconfirmedOrderChangeCh <- struct{}{}
 						}
 						for i := range mutualUnconfirmedOrders{
 							for j := range mutualUnconfirmedOrders[i]{
