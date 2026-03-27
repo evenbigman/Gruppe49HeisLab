@@ -1,0 +1,11 @@
+d2f8
+7
+- Clean main code, easy to see the different modules
+- A bit hard to see all the channels that were put into each module, this could be remedied by some grouping of the channels, as in create a type of network channels
+  that contain the relevant channels
+- Some functions are quite large, the code could benefit from more function calls inside each function. For instance fsm_core.go, the onNewRequestAssigner could have more calls inside the switch-case,
+  the onNetMsg in WorldView_core.go is also really long, and hard to see the functionality with a quick look.
+- Mostly good naming, easy to see responsibility of most functions.
+- The driverCommand type in driver.go seem unspecific, and was hard to gleem the purpose when it showed up in WorldView_shell.go as a channel.
+- Some functions could be made private, and inaccessible to other modules to reduce the interface. AssignOrders and ButtonTypeToElevio are examples of such.
+
