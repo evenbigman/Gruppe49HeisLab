@@ -6,7 +6,7 @@ d2f8
 - Some functions are quite large, the code could benefit from more function calls inside each function. For instance fsm_core.go, the onNewRequestAssigner could have more calls inside the switch-case,
   the onNetMsg in WorldView_core.go is also really long, and hard to see the functionality with a quick look.
 - Mostly good naming, easy to see responsibility of most functions.
-- The driverCommand type in driver.go seem unspecific, and was hard to gleem the purpose when it showed up in WorldView_shell.go as a channel.
+- The driverCommand type in driver.go seem unspecific, and was hard to infer the purpose when it showed up in WorldView_shell.go as a channel.
 - Some functions could be made private, and inaccessible to other modules to reduce the interface. AssignOrders and ButtonTypeToElevio are examples of such.
 
 dccb
@@ -19,4 +19,18 @@ dccb
  - Network module could be split up more.
 - Hard to track information with several files in each module.
 - Naming of functions are mostly clear, their intended use is mostly obvious.
+
+bf32
+6
+- Saving characters, seems to have a budget for number of characters on function names.
+- Calling only the elevator manager in main, looks clean, but does not give any information about the program.
+  In addition the "new main", that is the elevator manager, is messy. This could be remedied by moving the start of the other modules into main.
+- General bad naming, hard to navigate modules, and functions are hard to know the scope of.
+  This makes it lack cohesion, and makes the use of the modules harder.
+  - Some functions are named based on when they are to be called, rather than what they do.
+  - Hard to distinguish functions from routines.
+- The use of modules obfuscates more than they simplify, and generally makes the program harder to read because of bad naming.
+- The coupling of modules is tight because of dependencies between modules.
+  The connections between modules are also hard to infer based on the overall structure.
+- README file is nice, and clearly instructs in the use of the program.
 
