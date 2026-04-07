@@ -1,6 +1,6 @@
 d2f8
-7
-- Clean main code, easy to see the different modules
+8
+- Clean main code, easy to see the different modules and their purpose
 - A bit hard to see all the channels that were put into each module, this could be remedied by some grouping of the channels, as in create a type of network channels
   that contain the relevant channels
 - Some functions are quite large, the code could benefit from more function calls inside each function. For instance fsm_core.go, the onNewRequestAssigner could have more calls inside the switch-case,
@@ -8,4 +8,15 @@ d2f8
 - Mostly good naming, easy to see responsibility of most functions.
 - The driverCommand type in driver.go seem unspecific, and was hard to gleem the purpose when it showed up in WorldView_shell.go as a channel.
 - Some functions could be made private, and inaccessible to other modules to reduce the interface. AssignOrders and ButtonTypeToElevio are examples of such.
+
+dccb
+7
+- Many public functions could be made private, as their use is only in the module they are declared. This would make the interface simpler.
+- There are some global variables in main, their use is obvious, but their need to be global are not.
+- Init functions are not clear, some start routines, while others only init their module.
+- Using read/write only channels in main could clarify the flow of information.
+- Some modules could be a layer on top of another module, for instance Worldview on top of network.
+ - Network module could be split up more.
+- Hard to track information with several files in each module.
+- Naming of functions are mostly clear, their intended use is mostly obvious.
 
