@@ -34,3 +34,15 @@ bf32
   The connections between modules are also hard to infer based on the overall structure.
 - README file is nice, and clearly instructs in the use of the program.
 
+fdd2
+7
+This is our own code
+- Main is quite messy, it indicates a rushed product. There is logic and functions that could have been implemented in their own modules.
+- Most modules have a well defined boundary, and the naming gives them clear direction. On the other hand, their implementation have some inconsistencies
+  that let their functionality leak to other modules.
+- There is a clear difference in the modules and the principles used when designing them. This makes the overall code harder to understand.
+- Some variables are used in ways that is not reflected by their naming, and others have vague names that does not speak of the underlying use.
+Notes and learning from reading other groups code:
+- Create cleaner main, remove logic and function declarations
+- Reduce the amount of comments, it is better to use more time on function and variable names
+- We like our use of channels to notify, not passing information. But would create clearer connections
