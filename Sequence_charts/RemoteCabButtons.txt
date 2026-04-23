@@ -1,0 +1,9 @@
+title Confirmation of remote Cab orders
+
+participant "External network" as en
+participant "Peer manager" as pm
+
+note over en: Cab button pressed on remote elevator
+en -> pm: Snapshot with registered cab button
+note over pm: Update local snapshot of remote elevator
+pm -> en: Updated snapshot

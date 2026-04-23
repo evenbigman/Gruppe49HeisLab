@@ -1,0 +1,11 @@
+title Confirmation of remote hall orders
+
+participant "External network" as en
+participant "Peer manager" as pm
+
+note over en: Hall button pressed on remote elevator 1
+en -> pm: Updated snapshot from remote elevator 1
+note over pm: Update snapshot
+pm -> en: Updated snapshot
+note over pm: Wait for snapshot update regarding remote elevator 2
+note over pm: Update list of confirmed orders

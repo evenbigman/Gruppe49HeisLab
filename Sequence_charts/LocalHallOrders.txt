@@ -1,0 +1,19 @@
+title Confirmation of hall orders
+
+participant "External network" as en
+participant "Peer manager" as pm
+participant "Hall order assigner" as hoa
+participant "Elevator Controller" as ec
+
+note over ec: Hall button press
+ec -> pm: Button pressed
+note over pm: Update snapshot
+pm -> en: Send updated snapshot
+note over pm: Wait for acknowledged snapshot
+en -> pm: Return updated snapshot
+en -> pm: Return updated snapshot
+note over pm: Save button press as confirmed
+pm -> ec: Update list of confirmed orders
+pm -> hoa: Update list of confirmed orders
+hoa -> ec: Assign orders
+note over ec: Handle assigned orders

@@ -1,0 +1,14 @@
+title Startup and crash
+
+participant "External network" as en
+participant "Peer manager" as pm
+participant "Elevator Controller" as ec
+
+note over ec,en,pm: Startup fresh or after crash
+optional
+en -> pm: Snapshot with local id
+end
+optional check if remote snapshot was recieved
+pm -> ec: Remote snapshot for initial state
+end
+note over ec,en,pm: Run Init program

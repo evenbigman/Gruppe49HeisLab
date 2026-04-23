@@ -1,0 +1,16 @@
+title Confirmation of Cab orders
+
+participant "External network" as en
+participant "Peer manager" as pm
+participant "Elevator Controller" as ec
+
+note over ec: Cab button press
+ec -> pm: Button pressed
+note over pm: Update snapshot
+pm -> en: Updated snapshot
+loop Wait for acknowledged snapshot
+en -> pm: Snapshot
+end
+note over pm: Save order as confirmed
+pm -> ec: Update cab orders
+
