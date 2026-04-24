@@ -1,0 +1,15 @@
+title Deletion of hall orders
+
+
+participant "External network" as en
+participant "Peer manager" as pm
+participant "Elevator Controller" as ec
+
+note over ec: Arrival at floor with assigned hall order
+ec -> pm: Order has been fulfilled
+pm -> en: Order has been fulfilled
+en -> pm: Fulfilment of order has been registered, remote elevator 1
+en -> pm: Fulfilment of order has been registered, remote elevator 2
+note over pm: Remove order from confirmed orders
+pm -> ec: Order has been confirmed deleted
+
